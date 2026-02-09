@@ -8,12 +8,15 @@ import { TicketsIcon } from './icons/TicketsIcon';
 import { LogoutIcon } from './icons/LogoutIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import { ChatbotIcon } from './icons/ChatbotIcon';
+import lpcLogo from '../images/LPC-WEB-LOGO.png';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentPage: Page;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
+  profileName?: string;
+  avatarUrl?: string;
 }
 
 const NavLink: React.FC<{
@@ -24,18 +27,18 @@ const NavLink: React.FC<{
 }> = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center w-full px-4 py-3 text-sm font-medium transition-colors duration-200 ${
+    className={`group flex items-center w-full px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 rounded-xl ${
       isActive
-        ? 'text-white bg-gray-900'
-        : 'text-gray-400 hover:text-white hover:bg-gray-700'
-    } rounded-lg`}
+        ? 'text-white bg-white/10 ring-1 ring-white/15'
+        : 'text-white/70 hover:text-white hover:bg-white/5'
+    }`}
   >
-    {icon}
-    <span className="ml-4">{label}</span>
+    <span className={`transition-colors ${isActive ? 'text-[#F2B233]' : 'text-white/70 group-hover:text-[#F2B233]'}`}>{icon}</span>
+    <span className="ml-3">{label}</span>
   </button>
 );
 
-const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout, profileName, avatarUrl }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitles: Record<Page, string> = {
@@ -49,59 +52,79 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+    <div className="flex h-screen bg-gray-100 text-gray-900">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 px-4 py-8 overflow-y-auto bg-gray-800 border-r dark:bg-gray-800 dark:border-gray-700 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0`}>
-        <div className="flex items-center justify-center h-20 px-4 text-white">
-          <div className="text-center">
-            <div className="font-bold text-lg tracking-wide">LEGAL PRACTICE</div>
-            <div className="font-bold text-lg tracking-wide">COUNCIL AGENTS</div>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-72 px-4 py-8 overflow-hidden bg-gradient-to-b from-[#0A2A1F] to-[#0B0F14] border-r border-white/10 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col relative`}>
+        <div className="flex items-center justify-center px-4 text-white">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-full flex justify-center">
+              <img src={lpcLogo} alt="Legal Practice Council" className="h-[110px] w-[110px] object-contain" />
+            </div>
+            <div className="text-center leading-tight">
+              <div className="mt-2 text-xs text-white/70">Operations Portal</div>
+              <div className="mt-4 w-48"><div className="lpc-animated-line opacity-70" /></div>
+            </div>
           </div>
         </div>
 
-        <nav className="mt-8 space-y-2">
+        <nav className="mt-8 flex-1 flex flex-col justify-center gap-3 pb-32">
           <NavLink icon={<DashboardIcon className="w-5 h-5" />} label="Dashboard" isActive={currentPage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
           <NavLink icon={<ChatbotIcon className="w-5 h-5" />} label="Chatbots" isActive={currentPage === 'chatbots'} onClick={() => onNavigate('chatbots')} />
           <NavLink icon={<KnowledgeIcon className="w-5 h-5" />} label="Knowledge" isActive={currentPage === 'knowledge'} onClick={() => onNavigate('knowledge')} />
           <NavLink icon={<AnalyticsIcon className="w-5 h-5" />} label="Analytics" isActive={currentPage === 'analytics'} onClick={() => onNavigate('analytics')} />
           <NavLink icon={<TicketsIcon className="w-5 h-5" />} label="Tickets" isActive={currentPage === 'tickets'} onClick={() => onNavigate('tickets')} />
-          <NavLink icon={<SettingsIcon className="w-5 h-5" />} label="Settings" isActive={currentPage === 'settings'} onClick={() => onNavigate('settings')} />
         </nav>
-        
-        <div className="absolute bottom-0 left-0 w-full p-4">
+
+        <div className="absolute bottom-0 left-0 w-full p-4 space-y-2">
+          <div className="lpc-animated-line opacity-60" />
+
+          <NavLink icon={<SettingsIcon className="w-5 h-5" />} label="Settings" isActive={currentPage === 'settings'} onClick={() => onNavigate('settings')} />
+
           <button
             onClick={onLogout}
-            className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-400 transition-colors duration-200 rounded-lg hover:text-white hover:bg-gray-700"
+            className="flex items-center w-full px-4 py-2.5 text-[13px] font-semibold text-white/70 transition-colors duration-200 rounded-xl hover:text-white hover:bg-white/5"
           >
             <LogoutIcon className="w-5 h-5" />
-            <span className="ml-4">Logout</span>
+            <span className="ml-3">Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 w-full overflow-y-auto">
-        <header className="flex items-center justify-between h-16 px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+      <div className="flex flex-col flex-1 w-full lpc-content-bg">
+        <header className="flex items-center justify-between h-16 px-6 py-4 bg-white/70 backdrop-blur border-b border-black/5">
             <div className="flex items-center">
-                 <button className="text-gray-500 focus:outline-none md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                 <button className="text-gray-700 focus:outline-none md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 6H20M4 12H20M4 18H11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                 </button>
-                <h1 className="text-2xl font-semibold text-gray-800 dark:text-white ml-4 md:ml-0">{pageTitles[currentPage]}</h1>
+                <h1 className="text-xl font-bold text-gray-900 ml-4 md:ml-0 tracking-tight">{pageTitles[currentPage]}</h1>
             </div>
 
             <div className="flex items-center">
                 <div className="relative">
-                    <button onClick={() => onNavigate('profile')} className="flex items-center focus:outline-none">
-                        <img className="object-cover w-10 h-10 rounded-full" src="https://picsum.photos/100" alt="Avatar"/>
-                        <span className="hidden ml-2 font-semibold md:inline">Demo User</span>
+                    <button onClick={() => onNavigate('profile')} className="flex items-center gap-3 focus:outline-none">
+                        <div className="subtle-anim-border rounded-full">
+                          <div className="bg-white dark:bg-gray-800 rounded-full p-[2px]">
+                            <img
+                              className="object-cover w-10 h-10 rounded-full"
+                              src={avatarUrl || "https://picsum.photos/100"}
+                              alt="Avatar"
+                            />
+                          </div>
+                        </div>
+                        <div className="hidden md:block text-left">
+                          <div className="text-sm font-bold text-gray-900 leading-tight">{profileName || 'User'}</div>
+                          <div className="text-xs text-gray-500">View profile</div>
+                        </div>
                     </button>
                 </div>
             </div>
         </header>
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 overflow-y-auto overflow-x-hidden lpc-content-bg-soft">
+          <div className="mb-4 lpc-animated-line opacity-20" aria-hidden="true" />
           {children}
         </main>
       </div>

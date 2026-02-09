@@ -42,24 +42,22 @@ const hourlyDataForDay = [
 ];
 
 
-const mockRecentTickets: Pick<Ticket, 'id' | 'customerName' | 'subject' | 'status'>[] = [
-    { id: 'TKT-004', customerName: 'Bucky Barnes', subject: 'Report a Lawyer', status: 'open' },
-    { id: 'TKT-001', customerName: 'John Doe', subject: 'Fake lawyer stole', status: 'open' },
-    { id: 'TKT-002', customerName: 'Jane Smith', subject: 'Code of Conduct', status: 'in_progress' },
-];
+const mockRecentTickets: Pick<Ticket, 'id' | 'customerName' | 'subject' | 'status'>[] = [];
 
 const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string; description: string }> = ({ icon, title, value, description }) => (
-    <Card>
-        <div className="flex items-center">
-            <div className="p-3 mr-4 text-blue-500 bg-blue-100 rounded-full dark:text-blue-100 dark:bg-blue-500">
-                {icon}
+    <Card className="h-full">
+        <div className="h-full flex flex-col justify-between">
+            <div className="flex items-center">
+                <div className="p-3 mr-4 text-[#C79A2A] bg-[#C79A2A]/10 rounded-2xl ring-1 ring-[#C79A2A]/20">
+                    {icon}
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</p>
+                    <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{value}</p>
+                </div>
             </div>
-            <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-                <p className="text-2xl font-semibold text-gray-700 dark:text-gray-200">{value}</p>
-            </div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 min-h-[2.5rem] leading-snug">{description}</p>
         </div>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </Card>
 );
 
@@ -135,7 +133,19 @@ const CalendarPopover: React.FC<{
 
 type Timeframe = 'daily' | 'weekly' | 'monthly';
 
-const Dashboard: React.FC = () => {
+const Dashboard: React.FC<{
+    tickets?: Ticket[];
+    totalConversations?: number;
+    activeBotsCount?: number;
+    knowledgeSyncedCount?: number;
+    knowledgePendingCount?: number;
+}> = ({
+    tickets = [],
+    totalConversations = 0,
+    activeBotsCount = 0,
+    knowledgeSyncedCount = 0,
+    knowledgePendingCount = 0,
+}) => {
     const [timeframe, setTimeframe] = useState<Timeframe>('weekly');
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -171,8 +181,10 @@ const Dashboard: React.FC = () => {
         return (
             <button
                 onClick={() => handleTimeframeChange(filter as Timeframe)}
-                className={`px-3 py-1 text-sm rounded-md ${
-                    isActive ? 'bg-blue-600 text-white font-semibold' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-[#0A2A1F] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
                 {label}
@@ -180,32 +192,35 @@ const Dashboard: React.FC = () => {
         );
     }
 
+    const openTickets = tickets.filter(t => t.status === 'open' || t.status === 'in_progress');
+    const highPriorityOpen = openTickets.filter(t => t.priority === 'high');
+
     return (
         <div className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 items-stretch">
                 <StatCard 
                     icon={<UsersIcon className="w-6 h-6" />} 
                     title="Total Conversations" 
-                    value="2,426"
-                    description="+2.6% vs last month"
+                    value={Number(totalConversations).toLocaleString()}
+                    description="Total across all bots"
                 />
                 <StatCard 
                     icon={<ChatbotIcon className="w-6 h-6" />} 
                     title="Active Bots" 
-                    value="2"
-                    description="2 inactive"
+                    value={String(activeBotsCount)}
+                    description="Currently active"
                 />
                 <StatCard 
                     icon={<TicketsIcon className="w-6 h-6" />} 
                     title="Open Tickets" 
-                    value="2"
-                    description="High priority"
+                    value={String(openTickets.length)}
+                    description={highPriorityOpen.length ? `${highPriorityOpen.length} high priority` : 'No high priority'}
                 />
                  <StatCard 
                     icon={<KnowledgeIcon className="w-6 h-6" />} 
                     title="Knowledge Sources" 
-                    value="5"
-                    description="1 needs sync"
+                    value={String(knowledgeSyncedCount + knowledgePendingCount)}
+                    description={`${knowledgeSyncedCount} synced • ${knowledgePendingCount} pending`}
                 />
             </div>
 
@@ -219,7 +234,7 @@ const Dashboard: React.FC = () => {
                             <TimeframeButton filter="monthly" label="Monthly" />
                             <button 
                                 onClick={() => setIsCalendarOpen(prev => !prev)}
-                                className={`p-2 rounded-md ${isCalendarOpen || selectedDate ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                                className={`p-2 rounded-lg transition-colors ${isCalendarOpen || selectedDate ? 'bg-[#0A2A1F] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                             >
                                 <CalendarIcon className="w-4 h-4" />
                             </button>
@@ -248,28 +263,31 @@ const Dashboard: React.FC = () => {
                                     cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
                                 />
                                 <Legend />
-                                <Line type="monotone" dataKey="conversations" name="Conversations" stroke="#3B82F6" activeDot={{ r: 8 }} />
+                                <Line type="monotone" dataKey="conversations" name="Conversations" stroke="#C79A2A" strokeWidth={3} activeDot={{ r: 8 }} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
                 </Card>
                 <Card>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Recent Tickets</h3>
+                    <h3 className="font-extrabold text-gray-900 mb-4 tracking-tight">Recent Tickets</h3>
                     <ul className="space-y-4">
-                        {mockRecentTickets.map(ticket => (
+                        {tickets.slice().sort((a, b) => (b.lastUpdate || '').localeCompare(a.lastUpdate || '')).slice(0, 4).map(ticket => (
                             <li key={ticket.id} className="flex items-start">
-                                <div className="p-2 mr-3 text-sm text-gray-500 bg-gray-100 rounded-full dark:bg-gray-700 dark:text-gray-400">
+                                <div className="p-2 mr-3 text-sm text-lpc-gold bg-lpc-gold/10 rounded-2xl ring-1 ring-lpc-gold/15">
                                     <TicketsIcon className="w-5 h-5"/>
                                 </div>
-                                <div>
-                                    <p className="font-medium text-gray-800 dark:text-gray-200">{ticket.subject}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        {ticket.customerName} - <span className="capitalize">{ticket.status?.replace('_', ' ')}</span>
+                                <div className="min-w-0">
+                                    <p className="font-semibold text-gray-900 dark:text-white truncate">{ticket.subject}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                                        {ticket.customerName} · <span className="capitalize">{ticket.status?.replace('_', ' ')}</span>
                                     </p>
                                 </div>
                             </li>
                         ))}
                     </ul>
+                    {tickets.length === 0 ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">No tickets yet.</div>
+                    ) : null}
                 </Card>
             </div>
         </div>

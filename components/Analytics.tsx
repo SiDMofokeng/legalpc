@@ -16,7 +16,7 @@ const conversationSourceData = [
   { subject: 'Other', A: 85, B: 90, fullMark: 150 },
 ];
 
-const COLORS = ['#10B981', '#F59E0B', '#3B82F6'];
+const COLORS = ['#C79A2A', '#F08A24', '#0A2A1F'];
 
 // Custom label renderer for the Pie chart
 const RADIAN = Math.PI / 180;
@@ -46,18 +46,18 @@ const Analytics: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                <Card className="lg:col-span-2 h-96">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Ticket Status</h3>
+                <Card className="lg:col-span-2 h-96" noClip>
+                    <h3 className="font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">Ticket Status</h3>
                     <ResponsiveContainer width="100%" height="90%">
-                        <PieChart>
+                        <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                             <Pie
                                 data={ticketStatusData}
-                                cx="40%"
+                                cx="45%"
                                 cy="50%"
                                 labelLine={false}
                                 label={renderCustomizedLabel}
-                                outerRadius={120}
-                                fill="#8884d8"
+                                outerRadius={110}
+                                fill="#C79A2A"
                                 dataKey="value"
                             >
                                 {ticketStatusData.map((entry, index) => (
@@ -66,9 +66,9 @@ const Analytics: React.FC = () => {
                             </Pie>
                             <Tooltip
                                 contentStyle={{
-                                    backgroundColor: 'rgba(31, 41, 55, 0.8)',
-                                    borderColor: 'rgba(55, 65, 81, 1)',
-                                    borderRadius: '0.5rem'
+                                    backgroundColor: 'rgba(11, 15, 20, 0.8)',
+                                    borderColor: 'rgba(255, 255, 255, 0.12)',
+                                    borderRadius: '0.75rem'
                                 }}
                             />
                             <Legend 
@@ -80,19 +80,19 @@ const Analytics: React.FC = () => {
                         </PieChart>
                     </ResponsiveContainer>
                 </Card>
-                <Card className="lg:col-span-3 h-96">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Conversation Topics</h3>
+                <Card className="lg:col-span-3 h-96" noClip>
+                    <h3 className="font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">Conversation Topics</h3>
                     <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={conversationSourceData}>
+                        <RadarChart cx="50%" cy="52%" outerRadius="72%" data={conversationSourceData}>
                             <PolarGrid />
-                            <PolarAngleAxis dataKey="subject" />
-                            <PolarRadiusAxis />
-                            <Radar name="This Month" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#6b7280', fontSize: 12 }} />
+                            <PolarRadiusAxis tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                            <Radar name="This Month" dataKey="A" stroke="#F08A24" fill="#F08A24" fillOpacity={0.55} />
                              <Tooltip
                                 contentStyle={{
-                                    backgroundColor: 'rgba(31, 41, 55, 0.8)',
-                                    borderColor: 'rgba(55, 65, 81, 1)',
-                                    borderRadius: '0.5rem'
+                                    backgroundColor: 'rgba(11, 15, 20, 0.8)',
+                                    borderColor: 'rgba(255, 255, 255, 0.12)',
+                                    borderRadius: '0.75rem'
                                 }}
                             />
                         </RadarChart>
@@ -101,10 +101,9 @@ const Analytics: React.FC = () => {
             </div>
             
             <Card>
-                <h3 className="font-semibold text-lg mb-4 text-gray-900 dark:text-white">Conversation Logs</h3>
-                {/* A real app would have a detailed log table here. This is a placeholder. */}
-                <div className="p-4 border rounded-lg dark:border-gray-700">
-                    <p className="text-gray-600 dark:text-gray-400">Full conversation logs with filtering and export options would be displayed here.</p>
+                <h3 className="font-extrabold text-lg mb-4 text-gray-900 dark:text-white tracking-tight">Conversation Logs</h3>
+                <div className="p-4 border border-black/5 dark:border-white/10 rounded-xl">
+                    <p className="text-gray-600 dark:text-gray-400">Full conversation logs with filtering and export options will live here (export, filters, time ranges).</p>
                 </div>
             </Card>
         </div>

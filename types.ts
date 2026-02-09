@@ -1,5 +1,3 @@
-import type { Content } from "@google/genai";
-
 export interface ChatMessage {
     id: number | string;
     sender: 'user' | 'ai' | 'agent';

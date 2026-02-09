@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Card from './ui/Card';
 import AddUserModal from './AddUserModal';
 import type { User } from '../types';
+import { upsertUser, deleteUser } from '../services/firestoreStore';
 
 interface SettingsProps {
     users: User[];
@@ -12,7 +13,7 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 
-    const handleAddUser = (name: string, email: string, role: 'Admin' | 'Agent') => {
+    const handleAddUser = async (name: string, email: string, role: 'Admin' | 'Agent') => {
         const newUser: User = {
             id: Date.now().toString(),
             name,
@@ -21,26 +22,48 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
             avatar: `https://picsum.photos/100/100?a=${Date.now()}`,
             status: 'pending'
         };
+
+        // Optimistic UI
         setUsers(prev => [...prev, newUser]);
         setIsAddUserModalOpen(false);
-        // Explicitly explain the demo nature and provide clear instructions
-        alert(`SUCCESS: Simulated Invite Sent to ${email}\n\nSince this is a demo environment, no actual email was sent.\n\nTo test the user flow:\n1. Log out\n2. Click "Invited to the team?" on the login page\n3. Enter ${email} to set a password.`);
+
+        try {
+            await upsertUser(newUser);
+        } catch (err: any) {
+            console.error('Failed to add user:', err);
+            // rollback
+            setUsers(prev => prev.filter(u => u.id !== newUser.id));
+            alert(`Could not add user: ${err?.message || 'Unknown error'}`);
+            return;
+        }
+
+        alert(`SUCCESS: Invite Created for ${email}\n\nNo email is sent yet in this MVP.\n\nTo test the user flow:\n1. Log out\n2. Click "Invited to the team?" on the login page\n3. Enter ${email} to set a password.`);
     };
 
     const handleResendInvite = (email: string) => {
         alert(`Invitation resent to ${email}. (Simulated)`);
     };
 
-    const handleDeleteUser = (userId: string) => {
-        // Prevent deleting the main demo admin to avoid lockout
+    const handleDeleteUser = async (userId: string) => {
+        // Prevent deleting the seeded demo admin to avoid lockout
         if (userId === '1') {
             alert("You cannot remove the primary Admin account in this demo.");
             return;
         }
 
-        if (window.confirm("Are you sure you want to remove this user? This action cannot be undone.")) {
-            // Ensure we are filtering based on the exact ID and creating a new array reference
-            setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
+        const ok = window.confirm("Are you sure you want to remove this user? This action cannot be undone.");
+        if (!ok) return;
+
+        // Optimistic UI
+        const before = users;
+        setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
+
+        try {
+            await deleteUser(userId);
+        } catch (err: any) {
+            console.error('Failed to delete user:', err);
+            setUsers(before); // rollback
+            alert(`Could not delete user: ${err?.message || 'Unknown error'}`);
         }
     };
 
@@ -52,7 +75,7 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
                     <h3 className="font-semibold text-lg text-gray-900 dark:text-white">User Management</h3>
                     <button 
                         onClick={() => setIsAddUserModalOpen(true)}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                        className="px-4 py-2 text-sm font-extrabold rounded-lg btn-primary">
                         + Add User
                     </button>
                 </div>

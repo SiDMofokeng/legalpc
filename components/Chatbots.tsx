@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
-import type { Chatbot, AIConfig, KnowledgeSource } from '../types';
-import Card from './ui/Card';
-import { EditIcon } from './icons/EditIcon';
-import { DeleteIcon } from './icons/DeleteIcon';
-import ConnectBotModal from './ConnectBotModal';
-import EditBotModal from './EditBotModal';
-import ChatSimulator from './ChatSimulator';
+// FILE: components/Chatbots.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import type { Chatbot, AIConfig, KnowledgeSource } from "../types";
+import Card from "./ui/Card";
+import { EditIcon } from "./icons/EditIcon";
+import { DeleteIcon } from "./icons/DeleteIcon";
+import ConnectBotModal from "./ConnectBotModal";
+import EditBotModal from "./EditBotModal";
+import ChatSimulator from "./ChatSimulator";
+
+import {
+    getChatbots as fsGetChatbots,
+    upsertChatbot as fsUpsertChatbot,
+    updateChatbot as fsUpdateChatbot,
+    deleteChatbot as fsDeleteChatbot,
+    seedChatbotsIfEmpty as fsSeedChatbotsIfEmpty,
+} from "../services/firestoreStore";
 
 interface ChatbotsProps {
     chatbots: Chatbot[];
@@ -15,22 +24,51 @@ interface ChatbotsProps {
     onAddFeedbackToKnowledge: (botId: string, question: string, answer: string) => void;
 }
 
-const BotCard: React.FC<{ bot: Chatbot; onEdit: () => void; onSimulate: () => void; onToggleStatus: () => void; }> = ({ bot, onEdit, onSimulate, onToggleStatus }) => (
+const BotCard: React.FC<{
+    bot: Chatbot;
+    testBtnClassName: string;
+    onEdit: () => void;
+    onSimulate: () => void;
+    onToggleStatus: () => void;
+    onDelete: () => void;
+}> = ({ bot, testBtnClassName, onEdit, onSimulate, onToggleStatus, onDelete }) => (
     <Card>
         <div className="flex justify-between items-start">
             <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{bot.name}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{bot.phone}</p>
-                <div className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bot.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    <span className={`h-2 w-2 rounded-full mr-1.5 ${bot.status === 'active' ? 'bg-green-400' : 'bg-gray-400'}`}></span>
-                    {bot.status === 'active' ? 'Active' : 'Inactive'}
+                <div
+                    className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bot.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                        }`}
+                >
+                    <span
+                        className={`h-2 w-2 rounded-full mr-1.5 ${bot.status === "active" ? "bg-green-400" : "bg-gray-400"
+                            }`}
+                    ></span>
+                    {bot.status === "active" ? "Active" : "Inactive"}
                 </div>
             </div>
+
             <div className="flex space-x-2">
-                <button onClick={onEdit} className="p-2 text-gray-400 hover:text-blue-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><EditIcon className="w-5 h-5" /></button>
-                <button className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"><DeleteIcon className="w-5 h-5" /></button>
+                <button
+                    onClick={onEdit}
+                    className="p-2 text-gray-400 hover:text-lpc-gold rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Edit"
+                >
+                    <EditIcon className="w-5 h-5" />
+                </button>
+                <button
+                    onClick={onDelete}
+                    className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Delete"
+                >
+                    <DeleteIcon className="w-5 h-5" />
+                </button>
             </div>
         </div>
+
         <div className="mt-4 grid grid-cols-3 gap-4 text-center">
             <div>
                 <p className="text-2xl font-semibold">{bot.conversations}</p>
@@ -45,79 +83,223 @@ const BotCard: React.FC<{ bot: Chatbot; onEdit: () => void; onSimulate: () => vo
                 <p className="text-xs text-gray-500">Sources</p>
             </div>
         </div>
+
         <div className="mt-4 flex space-x-2">
-            <button onClick={onSimulate} className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Test Bot</button>
+            <button
+                onClick={onSimulate}
+                className={`flex-1 px-4 py-2 text-sm font-bold rounded-lg ${testBtnClassName}`}
+            >
+                Test Bot
+            </button>
+
             <label htmlFor={`toggle-${bot.id}`} className="flex items-center cursor-pointer">
                 <div className="relative">
-                    <input type="checkbox" id={`toggle-${bot.id}`} className="sr-only" checked={bot.status === 'active'} onChange={onToggleStatus} />
-                    <div className="block bg-gray-200 dark:bg-gray-600 w-10 h-6 rounded-full"></div>
-                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition ${bot.status === 'active' ? 'transform translate-x-full bg-blue-600' : ''}`}></div>
+                    <input
+                        type="checkbox"
+                        id={`toggle-${bot.id}`}
+                        className="sr-only"
+                        checked={bot.status === "active"}
+                        onChange={onToggleStatus}
+                    />
+                    <div
+                        className={`block w-10 h-6 rounded-full ring-1 ring-black/5 transition-colors ${bot.status === "active" ? "bg-[#0B0F14]/15" : "bg-gray-200"}`}
+                    ></div>
+                    <div
+                        className={`dot absolute left-1 top-1 w-4 h-4 rounded-full transition ${bot.status === "active" ? "transform translate-x-full bg-[#0B0F14]" : "bg-white ring-1 ring-black/10"}`}
+                    ></div>
                 </div>
             </label>
         </div>
     </Card>
 );
 
-const Chatbots: React.FC<ChatbotsProps> = ({ chatbots, setChatbots, aiConfigs, sources, onAddFeedbackToKnowledge }) => {
+const makeId = () => {
+    // Best effort unique ID for docs (no extra deps)
+    // @ts-ignore
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return `bot-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const Chatbots: React.FC<ChatbotsProps> = ({
+    chatbots,
+    setChatbots,
+    aiConfigs,
+    sources,
+    onAddFeedbackToKnowledge,
+}) => {
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [editingBot, setEditingBot] = useState<Chatbot | null>(null);
     const [simulatingBot, setSimulatingBot] = useState<Chatbot | null>(null);
 
-    const handleConnectBot = (botName: string, phoneNumber: string) => {
+    const [loading, setLoading] = useState(true);
+
+    // ---- Firestore: load chatbots (and seed once if empty) ----
+    useEffect(() => {
+        let cancelled = false;
+
+        const load = async () => {
+            try {
+                setLoading(true);
+
+                const remote = await fsGetChatbots();
+                if (!cancelled && remote.length > 0) {
+                    setChatbots(remote);
+                    return;
+                }
+
+                // If empty in Firestore, seed ONCE from what we currently have (demo list / local state)
+                // then load again.
+                const seeded = await fsSeedChatbotsIfEmpty(chatbots);
+                if (seeded) {
+                    const afterSeed = await fsGetChatbots();
+                    if (!cancelled) setChatbots(afterSeed);
+                } else {
+                    // Firestore empty but seed didn't run (shouldn't happen often) — just keep current
+                    if (!cancelled) setChatbots(chatbots);
+                }
+            } catch (err: any) {
+                console.error("Failed to load chatbots from Firestore:", err);
+                alert(`Could not load chatbots: ${err?.message || "Unknown error"}`);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        load();
+        return () => {
+            cancelled = true;
+        };
+        // Intentionally run once on mount.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleConnectBot = async (botName: string, phoneNumber: string) => {
         const newBot: Chatbot = {
-            id: (chatbots.length + 1).toString(),
+            id: makeId(),
             name: botName,
             phone: phoneNumber,
-            status: 'active',
+            status: "active",
             conversations: 0,
             responseRate: 0,
             knowledgeSources: 0,
         };
-        setChatbots(prev => [...prev, newBot]);
-        setIsConnectModalOpen(false);
+
+        try {
+            await fsUpsertChatbot(newBot);
+            setChatbots((prev) => [...prev, newBot]);
+            setIsConnectModalOpen(false);
+        } catch (err: any) {
+            console.error("Failed to create bot:", err);
+            alert(`Could not create bot: ${err?.message || "Unknown error"}`);
+        }
     };
 
-    const handleSaveBot = (updatedBot: Chatbot) => {
-        setChatbots(chatbots.map(b => b.id === updatedBot.id ? updatedBot : b));
-        setEditingBot(null);
+    const handleSaveBot = async (updatedBot: Chatbot) => {
+        try {
+            await fsUpsertChatbot(updatedBot);
+            setChatbots((prev) => prev.map((b) => (b.id === updatedBot.id ? updatedBot : b)));
+            setEditingBot(null);
+        } catch (err: any) {
+            console.error("Failed to save bot:", err);
+            alert(`Could not save bot: ${err?.message || "Unknown error"}`);
+        }
     };
 
-    const handleToggleStatus = (botId: string) => {
-        setChatbots(chatbots.map(b => b.id === botId ? { ...b, status: b.status === 'active' ? 'inactive' : 'active' } : b));
+    const handleToggleStatus = async (botId: string) => {
+        const current = chatbots.find((b) => b.id === botId);
+        if (!current) return;
+
+        const nextStatus: Chatbot["status"] = current.status === "active" ? "inactive" : "active";
+
+        // Optimistic UI (feels instant)
+        setChatbots((prev) =>
+            prev.map((b) => (b.id === botId ? { ...b, status: nextStatus } : b))
+        );
+
+        try {
+            await fsUpdateChatbot(botId, { status: nextStatus });
+        } catch (err: any) {
+            // Rollback if Firestore fails
+            console.error("Failed to toggle status:", err);
+            setChatbots((prev) =>
+                prev.map((b) => (b.id === botId ? { ...b, status: current.status } : b))
+            );
+            alert(`Could not update status: ${err?.message || "Unknown error"}`);
+        }
     };
-    
-    const botToSimulateConfig = aiConfigs.find(c => c.botId === simulatingBot?.id);
-    const botToSimulateSources = sources.filter(s => s.botId === simulatingBot?.id);
+
+    const handleDeleteBot = async (bot: Chatbot) => {
+        const ok = window.confirm(
+            `Delete "${bot.name}"?\n\nThis removes it from the dashboard for your account.`
+        );
+        if (!ok) return;
+
+        // Optimistic UI
+        const before = chatbots;
+        setChatbots((prev) => prev.filter((b) => b.id !== bot.id));
+
+        try {
+            await fsDeleteChatbot(bot.id);
+        } catch (err: any) {
+            console.error("Failed to delete bot:", err);
+            setChatbots(before); // rollback
+            alert(`Could not delete bot: ${err?.message || "Unknown error"}`);
+        }
+    };
+
+    const botToSimulateConfig = useMemo(
+        () => aiConfigs.find((c) => c.botId === simulatingBot?.id),
+        [aiConfigs, simulatingBot]
+    );
+    const botToSimulateSources = useMemo(
+        () => sources.filter((s) => s.botId === simulatingBot?.id),
+        [sources, simulatingBot]
+    );
 
     return (
         <>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-semibold text-gray-800 dark:text-white">Your Chatbots</h1>
-                <button onClick={() => setIsConnectModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                <button
+                    onClick={() => setIsConnectModalOpen(true)}
+                    className="px-4 py-2 text-sm font-extrabold rounded-lg btn-primary-gold"
+                >
                     + Connect New Bot
                 </button>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {chatbots.map(bot => (
-                    <BotCard 
-                        key={bot.id} 
-                        bot={bot} 
-                        onEdit={() => setEditingBot(bot)} 
-                        onSimulate={() => setSimulatingBot(bot)}
-                        onToggleStatus={() => handleToggleStatus(bot.id)}
-                    />
-                ))}
-            </div>
+            {loading ? (
+                <Card>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Loading chatbots…</p>
+                </Card>
+            ) : (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {chatbots.map((bot) => (
+                        <BotCard
+                            key={bot.id}
+                            bot={bot}
+                            testBtnClassName={'btn-primary-ink'}
+                            onEdit={() => setEditingBot(bot)}
+                            onSimulate={() => setSimulatingBot(bot)}
+                            onToggleStatus={() => handleToggleStatus(bot.id)}
+                            onDelete={() => handleDeleteBot(bot)}
+                        />
+                    ))}
+                </div>
+            )}
 
-            {isConnectModalOpen && <ConnectBotModal onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectBot} />}
-            {editingBot && <EditBotModal bot={editingBot} onClose={() => setEditingBot(null)} onSave={handleSaveBot} />}
+            {isConnectModalOpen && (
+                <ConnectBotModal onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectBot} />
+            )}
+            {editingBot && (
+                <EditBotModal bot={editingBot} onClose={() => setEditingBot(null)} onSave={handleSaveBot} />
+            )}
             {simulatingBot && (
-                <ChatSimulator 
-                    bot={simulatingBot} 
+                <ChatSimulator
+                    bot={simulatingBot}
                     config={botToSimulateConfig}
                     sources={botToSimulateSources}
-                    onClose={() => setSimulatingBot(null)} 
+                    onClose={() => setSimulatingBot(null)}
                     onAddFeedbackToKnowledge={onAddFeedbackToKnowledge}
                 />
             )}

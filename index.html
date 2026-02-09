@@ -1,26 +1,231 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Legal Practice Council Agents</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0"
-  }
-}
-</script>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal Practice Council Agents</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    // Tailwind via CDN: extend with LPC-inspired palette
+    tailwind = {
+      config: {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+            },
+            colors: {
+              lpc: {
+                // Brand-inspired (gold/orange/green + deep charcoal)
+                gold: '#C79A2A',
+                amber: '#F2B233',
+                orange: '#F08A24',
+                forest: '#0B3B2B',
+                pine: '#0A2A1F',
+                ink: '#0B0F14',
+              },
+            },
+            boxShadow: {
+              soft: '0 10px 30px rgba(0,0,0,0.08)',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    html,
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+
+    /* Subtle animated border (inspired by Color app; legible) */
+    @keyframes lpcBorderSpin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Animated line (ported from Color project vibe) */
+    @keyframes lpcLineSweep {
+      0% { background-position: 0% 50%; opacity: 0.45; }
+      50% { opacity: 0.85; }
+      100% { background-position: 200% 50%; opacity: 0.45; }
+    }
+    .lpc-animated-line{
+      height: 1px;
+      width: 100%;
+      background-image: linear-gradient(90deg,
+        rgba(255,255,255,0),
+        rgba(242,178,51,0.55),
+        rgba(240,138,36,0.35),
+        rgba(255,255,255,0)
+      );
+      background-size: 200% 100%;
+      animation: lpcLineSweep 4.5s linear infinite;
+    }
+
+    /* Subtle background pattern (topographic lines) */
+    .lpc-bg-pattern{
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='800' viewBox='0 0 1200 800'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.055' stroke-width='1'%3E%3Cpath d='M-50 640 C 120 520, 260 720, 420 620 S 760 520, 980 640 S 1220 760, 1280 600'/%3E%3Cpath d='M-80 560 C 160 420, 280 640, 470 540 S 770 420, 1010 560 S 1230 700, 1320 520'/%3E%3Cpath d='M-40 480 C 140 360, 300 560, 500 470 S 800 360, 1040 480 S 1240 600, 1300 440'/%3E%3Cpath d='M-60 400 C 120 280, 320 460, 540 390 S 860 280, 1100 400 S 1250 520, 1340 360'/%3E%3Cpath d='M-70 320 C 140 200, 340 380, 580 320 S 910 220, 1130 320 S 1260 440, 1360 280'/%3E%3Cpath d='M-90 240 C 120 140, 360 300, 620 250 S 960 160, 1160 240 S 1280 360, 1380 210'/%3E%3C/g%3E%3C/svg%3E"),
+        radial-gradient(900px 560px at 18% 10%, rgba(255,255,255,0.06), rgba(255,255,255,0) 60%);
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: center;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .lpc-animated-line{ animation: none; }
+    }
+
+    .subtle-anim-border {
+      position: relative;
+      overflow: hidden;
+      /* prevents pseudo-element from affecting layout */
+      border-radius: inherit;
+    }
+    /* Allow specific cards (charts) to overflow without being clipped */
+    .subtle-anim-border.no-clip { overflow: visible; }
+
+    .subtle-anim-border::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: conic-gradient(from 0deg,
+          rgba(199, 154, 42, 0.40),
+          rgba(240, 138, 36, 0.24),
+          rgba(10, 120, 76, 0.18),
+          rgba(199, 154, 42, 0.40));
+      opacity: 0.18;
+      /* subtle */
+      filter: blur(0.3px);
+      animation: lpcBorderSpin 10s linear infinite;
+      pointer-events: none;
+      will-change: transform;
+
+      /* hollow out the middle so it behaves like a border */
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      padding: 1px;
+    }
+
+    .subtle-anim-border:hover::before {
+      opacity: 0.28;
+    }
+
+    /* Main content background: echo sidebar gradient, but subtle for readability */
+    .lpc-content-bg {
+      background:
+        radial-gradient(1100px 650px at 12% 8%, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78) 55%, rgba(255, 255, 255, 0.68)),
+        linear-gradient(145deg,
+          rgba(10, 42, 31, 0.12),
+          rgba(11, 59, 43, 0.08) 45%,
+          rgba(11, 15, 20, 0.06));
+    }
+
+    /* Lighter sidebar echo for content areas (behind cards) */
+    .lpc-content-bg-soft {
+      background:
+        radial-gradient(900px 560px at 18% 10%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.70) 55%, rgba(255, 255, 255, 0.62)),
+        linear-gradient(145deg,
+          rgba(10, 42, 31, 0.55),
+          rgba(11, 59, 43, 0.55) 55%,
+          rgba(11, 15, 20, 0.55));
+    }
+
+    /* Shared UI primitives (avoid default blue) */
+    .lpc-focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(199, 154, 42, 0.28);
+      border-color: rgba(199, 154, 42, 0.45);
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #0B3B2B, #0A2A1F);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.06);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary-gold {
+      background: linear-gradient(180deg, rgba(242, 178, 51, 1), rgba(199, 154, 42, 1));
+      color: #0B0F14;
+      border: 1px solid rgba(0, 0, 0, 0.10);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-primary-gold:hover {
+      filter: brightness(1.02);
+    }
+
+    /* Button variants (use logo colors; avoid blue repetition) */
+    .btn-primary-orange {
+      background: linear-gradient(180deg, #F08A24, #C96A12);
+      color: #0B0F14;
+      border: 1px solid rgba(0, 0, 0, 0.10);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-primary-orange:hover {
+      filter: brightness(1.02);
+    }
+
+    .btn-primary-forest {
+      background: linear-gradient(180deg, #0B3B2B, #072218);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-primary-forest:hover {
+      filter: brightness(1.06);
+    }
+
+    .btn-primary-ink {
+      background: linear-gradient(180deg, #111827, #0B0F14);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+    }
+
+    .btn-primary-ink:hover {
+      filter: brightness(1.07);
+    }
+
+    .link-accent {
+      color: #0B3B2B;
+    }
+
+    .link-accent:hover {
+      color: #C79A2A;
+    }
+  </style>
+
 </head>
-  <body class="bg-gray-100 dark:bg-gray-900">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body class="bg-gray-100 dark:bg-gray-900 font-sans">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>
