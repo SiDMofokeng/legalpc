@@ -25,17 +25,18 @@ interface ChatbotsProps {
 
 const BotCard: React.FC<{
     bot: Chatbot;
+    sourceCount: number;
     testBtnClassName: string;
     onEdit: () => void;
     onSimulate: () => void;
     onToggleStatus: () => void;
     onDelete: () => void;
-}> = ({ bot, testBtnClassName, onEdit, onSimulate, onToggleStatus, onDelete }) => (
+}> = ({ bot, sourceCount, testBtnClassName, onEdit, onSimulate, onToggleStatus, onDelete }) => (
     <Card>
         <div className="flex justify-between items-start">
             <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{bot.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{bot.phone}</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{(bot.name || '').trim() || 'Unnamed Bot'}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{(bot.phone || '').trim() || '—'}</p>
                 <div
                     className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bot.status === "active"
                         ? "bg-green-100 text-green-800"
@@ -78,7 +79,7 @@ const BotCard: React.FC<{
                 <p className="text-xs text-gray-500">Response Rate</p>
             </div>
             <div>
-                <p className="text-2xl font-semibold">{bot.knowledgeSources ?? 0}</p>
+                <p className="text-2xl font-semibold">{sourceCount}</p>
                 <p className="text-xs text-gray-500">Sources</p>
             </div>
         </div>
@@ -157,11 +158,18 @@ const Chatbots: React.FC<ChatbotsProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleConnectBot = async (botName: string, phoneNumber: string) => {
+    const handleConnectBot = async (
+        botName: string,
+        phoneNumber: string,
+        phoneNumberId?: string,
+        wabaId?: string
+    ) => {
         const newBot: Chatbot = {
             id: makeId(),
             name: botName,
             phone: phoneNumber,
+            phoneNumberId: phoneNumberId || undefined,
+            whatsappBusinessAccountId: wabaId || undefined,
             status: "active",
             conversations: 0,
             responseRate: 0,
@@ -240,6 +248,15 @@ const Chatbots: React.FC<ChatbotsProps> = ({
         [sources, simulatingBot]
     );
 
+    const sourceCountByBotId = useMemo(() => {
+        const map: Record<string, number> = {};
+        for (const s of sources) {
+            if (!s.botId) continue;
+            map[s.botId] = (map[s.botId] || 0) + 1;
+        }
+        return map;
+    }, [sources]);
+
     return (
         <>
             <div className="flex justify-between items-center mb-6">
@@ -262,6 +279,7 @@ const Chatbots: React.FC<ChatbotsProps> = ({
                         <BotCard
                             key={bot.id}
                             bot={bot}
+                            sourceCount={sourceCountByBotId[bot.id] || 0}
                             testBtnClassName={'btn-primary-ink'}
                             onEdit={() => setEditingBot(bot)}
                             onSimulate={() => setSimulatingBot(bot)}
@@ -273,7 +291,10 @@ const Chatbots: React.FC<ChatbotsProps> = ({
             )}
 
             {isConnectModalOpen && (
-                <ConnectBotModal onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectBot} />
+                <ConnectBotModal
+                    onClose={() => setIsConnectModalOpen(false)}
+                    onConnect={handleConnectBot}
+                />
             )}
             {editingBot && (
                 <EditBotModal bot={editingBot} onClose={() => setEditingBot(null)} onSave={handleSaveBot} />

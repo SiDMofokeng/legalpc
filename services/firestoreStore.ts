@@ -51,7 +51,21 @@ export async function getChatbots(): Promise<Chatbot[]> {
 
     return snap.docs.map((d) => {
         const data = d.data() as any;
-        return { id: data.id || d.id, ...data } as Chatbot;
+        const id = String(data.id || d.id);
+        return {
+            ...data,
+            id,
+            name: String(data.name || ""),
+            phone: String(data.phone || ""),
+            phoneNumberId: data.phoneNumberId ? String(data.phoneNumberId) : undefined,
+            whatsappBusinessAccountId: data.whatsappBusinessAccountId
+                ? String(data.whatsappBusinessAccountId)
+                : undefined,
+            status: (data.status === "inactive" ? "inactive" : "active") as Chatbot["status"],
+            conversations: Number.isFinite(Number(data.conversations)) ? Number(data.conversations) : 0,
+            responseRate: Number.isFinite(Number(data.responseRate)) ? Number(data.responseRate) : 0,
+            knowledgeSources: Number.isFinite(Number(data.knowledgeSources)) ? Number(data.knowledgeSources) : 0,
+        } as Chatbot;
     });
 }
 

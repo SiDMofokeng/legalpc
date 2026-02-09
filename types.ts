@@ -28,10 +28,19 @@ export interface Ticket {
 export interface Chatbot {
     id: string;
     name: string;
+    /** E.164 display phone number (e.g. +15551234567). */
     phone: string;
+
+    /** Meta WhatsApp Cloud API phone_number_id (optional until connected). */
+    phoneNumberId?: string;
+
+    /** Meta WhatsApp Business Account / WABA id (optional until connected). */
+    whatsappBusinessAccountId?: string;
+
     status: 'active' | 'inactive';
     conversations: number;
     responseRate: number;
+    /** Legacy/stored count (UI should derive from knowledgeSources collection). */
     knowledgeSources: number;
 }
 
