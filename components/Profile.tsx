@@ -10,9 +10,12 @@ const Profile: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('profile');
 
     // Profile state
-    const [avatarPreview, setAvatarPreview] = useState('https://picsum.photos/100');
-    const [profileName, setProfileName] = useState('');
-    const [username, setUsername] = useState('');
+    const [avatarPreview, setAvatarPreview] = useState(auth.currentUser?.photoURL || 'https://picsum.photos/100');
+    const [profileName, setProfileName] = useState(auth.currentUser?.displayName || auth.currentUser?.email || '');
+    const [username, setUsername] = useState(auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : '');
+
+    // Prevent async profile load from overwriting user edits
+    const [dirty, setDirty] = useState({ name: false, username: false, avatar: false });
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
     const [loadingProfile, setLoadingProfile] = useState(true);
@@ -34,14 +37,15 @@ const Profile: React.FC = () => {
                 if (cancelled) return;
 
                 const fallbackName = auth.currentUser?.displayName || auth.currentUser?.email || '';
-                setProfileName(p?.displayName || fallbackName);
-                setUsername(p?.username || (auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : ''));
-                if (p?.avatarDataUrl) setAvatarPreview(p.avatarDataUrl);
+
+                if (!dirty.name) setProfileName(p?.displayName || fallbackName);
+                if (!dirty.username) setUsername(p?.username || (auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : ''));
+                if (!dirty.avatar && p?.avatarDataUrl) setAvatarPreview(p.avatarDataUrl);
             } catch (err) {
                 console.error('Failed to load profile:', err);
                 const fallbackName = auth.currentUser?.displayName || auth.currentUser?.email || '';
-                setProfileName(fallbackName);
-                setUsername(auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : '');
+                if (!dirty.name) setProfileName(fallbackName);
+                if (!dirty.username) setUsername(auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : '');
             } finally {
                 if (!cancelled) setLoadingProfile(false);
             }
@@ -54,6 +58,7 @@ const Profile: React.FC = () => {
     }, []);
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setDirty((d) => ({ ...d, avatar: true }));
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -98,6 +103,7 @@ const Profile: React.FC = () => {
             }
 
             window.dispatchEvent(new CustomEvent('lpc_profile_updated', { detail: { displayName, avatarUrl } }));
+            setDirty({ name: false, username: false, avatar: false });
             alert('Profile saved');
         } catch (err: any) {
             console.error('Save profile failed:', err);
@@ -132,7 +138,11 @@ const Profile: React.FC = () => {
                         type="text"
                         id="profileName"
                         value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
+                        onChange={(e) => {
+                            setDirty((d) => ({ ...d, name: true }));
+                            setProfileName(e.target.value);
+                        }}
+                        disabled={loadingProfile}
                         className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     />
                 </div>
@@ -142,7 +152,11 @@ const Profile: React.FC = () => {
                         type="text"
                         id="username"
                         value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        onChange={(e) => {
+                            setDirty((d) => ({ ...d, username: true }));
+                            setUsername(e.target.value);
+                        }}
+                        disabled={loadingProfile}
                         className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     />
                 </div>
