@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -8,9 +11,14 @@
     ],
     "rewrites": [
       {
+        "source": "/webhook/whatsapp",
+        "function": "whatsappWebhook"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
   }
 }
+
