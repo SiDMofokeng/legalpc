@@ -407,6 +407,16 @@ export async function deleteUser(userId: string): Promise<void> {
     await deleteDoc(ref);
 }
 
+export async function deleteUsersById(ids: string[]): Promise<void> {
+    const uid = requireUid();
+    const batch = writeBatch(db);
+    for (const id of ids) {
+        const ref = doc(db, "accounts", uid, "users", id);
+        batch.delete(ref);
+    }
+    await batch.commit();
+}
+
 export async function seedUsersIfEmpty(users: User[]): Promise<boolean> {
     const existing = await getDocs(userCollectionRef("users"));
     if (!existing.empty) return false;

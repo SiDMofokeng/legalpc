@@ -23,6 +23,7 @@ import {
   getTickets,
   subscribeTickets,
   deleteTicketsById,
+  deleteUsersById,
   getAccountProfile,
 } from "./services/firestoreStore";
 
@@ -298,8 +299,21 @@ function App() {
         setChatbots(bots);
 
         // 2) Users: load (no demo seeding)
+        // One-time cleanup: remove old demo users that were seeded earlier.
+        const usersCleanupKey = 'lpc_demo_users_removed_v1';
+        if (!window.localStorage.getItem(usersCleanupKey)) {
+          try {
+            await deleteUsersById(['1', '2', '3']);
+          } catch {
+            // ignore
+          } finally {
+            window.localStorage.setItem(usersCleanupKey, '1');
+          }
+        }
+
         const usrs = await getUsers();
-        setUsers(usrs);
+        // Filter any remaining demo artifacts by email domain
+        setUsers(usrs.filter((u) => !String(u.email || '').endsWith('@chatportal.ai')));
 
         // 3) AI Configs: load
         const cfgs = await getAiConfigs();

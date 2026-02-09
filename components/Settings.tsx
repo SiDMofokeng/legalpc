@@ -45,12 +45,6 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
     };
 
     const handleDeleteUser = async (userId: string) => {
-        // Prevent deleting the seeded demo admin to avoid lockout
-        if (userId === '1') {
-            alert("You cannot remove the primary Admin account in this demo.");
-            return;
-        }
-
         const ok = window.confirm("Are you sure you want to remove this user? This action cannot be undone.");
         if (!ok) return;
 
@@ -113,19 +107,13 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
                                         {user.status === 'pending' && (
-                                            <button onClick={() => handleResendInvite(user.email)} className="text-blue-600 hover:text-blue-900">Resend Invite</button>
+                                            <button onClick={() => handleResendInvite(user.email)} className="link-accent">Resend Invite</button>
                                         )}
-                                        {user.id !== '1' ? (
-                                             <button 
-                                                onClick={() => handleDeleteUser(user.id)} 
-                                                className="text-red-600 hover:text-red-900"
-                                                title="Remove user"
-                                            >
-                                                Remove
-                                            </button>
-                                        ) : (
-                                            <span className="text-gray-400 cursor-not-allowed" title="Cannot remove admin">Remove</span>
-                                        )}
+                                         <button 
+                                            onClick={() => handleDeleteUser(user.id)} 
+                                            className="text-red-500 hover:text-red-700">
+                                            Remove
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -134,19 +122,17 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
                 </div>
             </Card>
 
-            {/* Other settings cards can go here */}
             <Card>
-                 <h3 className="font-semibold text-lg text-gray-900 dark:text-white mb-4">API Settings</h3>
-                 <p className="text-gray-600 dark:text-gray-400">API keys and integration settings would be managed here.</p>
+                <h3 className="font-semibold text-lg text-gray-900 dark:text-white mb-2">API Settings</h3>
+                <p className="text-gray-600 dark:text-gray-400">API keys and integration settings would be managed here.</p>
             </Card>
         </div>
 
-        {isAddUserModalOpen && (
-            <AddUserModal
-                onClose={() => setIsAddUserModalOpen(false)}
-                onAddUser={handleAddUser}
-            />
-        )}
+        <AddUserModal
+            isOpen={isAddUserModalOpen}
+            onClose={() => setIsAddUserModalOpen(false)}
+            onAddUser={handleAddUser}
+        />
         </>
     );
 };
