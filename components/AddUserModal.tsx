@@ -3,11 +3,13 @@ import React, { useState } from 'react';
 import Card from './ui/Card';
 
 interface AddUserModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onAddUser: (name: string, email: string, role: 'Admin' | 'Agent') => void;
 }
 
-const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAddUser }) => {
+const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onAddUser }) => {
+  if (!isOpen) return null;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'Admin' | 'Agent'>('Agent');
@@ -38,7 +40,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAddUser }) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm lpc-focus sm:text-sm"
             />
           </div>
           <div>
@@ -49,7 +51,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAddUser }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm lpc-focus sm:text-sm"
             />
           </div>
            <div>
@@ -58,29 +60,28 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ onClose, onAddUser }) => {
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as 'Admin' | 'Agent')}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 lpc-focus sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600"
             >
                 <option>Agent</option>
                 <option>Admin</option>
             </select>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md mt-4">
-             <p className="text-xs text-blue-700 dark:text-blue-300">
-               <strong>Note:</strong> Since this is a demo environment, no actual email will be sent. 
-               The invited user can accept the invite by using the "Invited to the team?" link on the login page with this email address.
+          <div className="bg-[#F2B233]/10 p-3 rounded-md mt-4 ring-1 ring-[#F2B233]/20">
+             <p className="text-xs text-[#0B0F14]/80">
+               <strong>Note:</strong> This creates a login code for the user to accept via “Invited to the team?” on the login screen.
              </p>
           </div>
           <div className="flex justify-end gap-4 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
+              className="px-4 py-2 text-sm font-bold rounded-lg btn-primary-ink"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none"
+              className="px-4 py-2 text-sm font-extrabold rounded-lg btn-primary-gold"
             >
               Add User
             </button>
