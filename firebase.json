@@ -22,6 +22,10 @@
         "function": "migrateTicketsToSharedScope"
       },
       {
+        "source": "/migrate/all",
+        "function": "migrateAllAccountsToSharedScope"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

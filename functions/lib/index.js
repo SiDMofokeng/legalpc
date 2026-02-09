@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateTicketsToSharedScope = exports.whatsappWebhook = void 0;
+exports.migrateAllAccountsToSharedScope = exports.migrateTicketsToSharedScope = exports.whatsappWebhook = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
@@ -164,6 +164,40 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
  * One-time migration: copy legacy UID-scoped tickets into the shared account scope.
  * Call: POST /migrate/tickets with header x-migration-token: <token>
  */
+async function copyCollection(db, fromPath, toPath) {
+    const fromCol = db.collection(fromPath);
+    const toCol = db.collection(toPath);
+    const snap = await fromCol.get();
+    let copied = 0;
+    // batch in chunks of 450 (safety)
+    let batch = db.batch();
+    let opCount = 0;
+    for (const d of snap.docs) {
+        batch.set(toCol.doc(d.id), d.data(), { merge: true });
+        copied++;
+        opCount++;
+        if (opCount >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            opCount = 0;
+        }
+    }
+    if (opCount > 0)
+        await batch.commit();
+    return { docs: snap.size, copied };
+}
+function requireMigrationAuth(req, res) {
+    const token = String(req.headers['x-migration-token'] || '');
+    if (!token || token !== MIGRATION_TOKEN.value().trim()) {
+        res.status(403).json({ ok: false, error: 'Forbidden' });
+        return false;
+    }
+    return true;
+}
+/**
+ * One-time migration: copy legacy UID-scoped tickets into the shared account scope.
+ * Call: POST /migrate/tickets with header x-migration-token: <token>
+ */
 exports.migrateTicketsToSharedScope = (0, https_1.onRequest)({
     region: 'us-central1',
     secrets: [MIGRATION_TOKEN],
@@ -179,28 +213,76 @@ exports.migrateTicketsToSharedScope = (0, https_1.onRequest)({
         res.status(405).json({ ok: false, error: 'Method not allowed' });
         return;
     }
-    const token = String(req.headers['x-migration-token'] || '');
-    if (!token || token !== MIGRATION_TOKEN.value().trim()) {
-        res.status(403).json({ ok: false, error: 'Forbidden' });
+    if (!requireMigrationAuth(req, res))
         return;
-    }
     try {
         const db = admin.firestore();
-        const fromCol = db.collection(`accounts/${LEGACY_UID_SCOPE}/tickets`);
-        const toCol = db.collection(`accounts/${ACCOUNT_SCOPE_ID}/tickets`);
-        const snap = await fromCol.get();
-        let copied = 0;
-        const batch = db.batch();
-        snap.docs.forEach((d) => {
-            batch.set(toCol.doc(d.id), d.data(), { merge: true });
-            copied++;
-        });
-        await batch.commit();
-        res.status(200).json({ ok: true, copied });
+        const result = await copyCollection(db, `accounts/${LEGACY_UID_SCOPE}/tickets`, `accounts/${ACCOUNT_SCOPE_ID}/tickets`);
+        res.status(200).json({ ok: true, ...result });
         return;
     }
     catch (err) {
         console.error('migration_error', err);
+        res.status(500).json({ ok: false, error: err?.message || String(err) });
+        return;
+    }
+});
+/**
+ * Consolidate ALL account docs into shared scope (lpc-main):
+ * Copies: users, chatbots, aiConfigs, knowledgeSources, tickets, profile/main
+ */
+exports.migrateAllAccountsToSharedScope = (0, https_1.onRequest)({
+    region: 'us-central1',
+    secrets: [MIGRATION_TOKEN],
+    timeoutSeconds: 540,
+}, async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST,OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-migration-token');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method not allowed' });
+        return;
+    }
+    if (!requireMigrationAuth(req, res))
+        return;
+    try {
+        const db = admin.firestore();
+        const accountsSnap = await db.collection('accounts').get();
+        const accountIds = accountsSnap.docs.map((d) => d.id).filter((id) => id !== ACCOUNT_SCOPE_ID);
+        const collections = ['users', 'chatbots', 'aiConfigs', 'knowledgeSources', 'tickets'];
+        const summary = { accounts: accountIds.length, collections: {}, migratedAccounts: accountIds };
+        for (const col of collections) {
+            let totalCopied = 0;
+            let totalDocs = 0;
+            for (const accId of accountIds) {
+                const fromPath = `accounts/${accId}/${col}`;
+                const toPath = `accounts/${ACCOUNT_SCOPE_ID}/${col}`;
+                const r = await copyCollection(db, fromPath, toPath);
+                totalCopied += r.copied;
+                totalDocs += r.docs;
+            }
+            summary.collections[col] = { totalDocs, totalCopied };
+        }
+        // profile/main (single doc)
+        let profileCopied = 0;
+        for (const accId of accountIds) {
+            const fromDoc = db.doc(`accounts/${accId}/profile/main`);
+            const snap = await fromDoc.get();
+            if (snap.exists) {
+                await db.doc(`accounts/${ACCOUNT_SCOPE_ID}/profile/main`).set(snap.data() || {}, { merge: true });
+                profileCopied++;
+            }
+        }
+        summary.profile = { copied: profileCopied };
+        res.status(200).json({ ok: true, summary });
+        return;
+    }
+    catch (err) {
+        console.error('migration_all_error', err);
         res.status(500).json({ ok: false, error: err?.message || String(err) });
         return;
     }
