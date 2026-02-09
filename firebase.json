@@ -26,6 +26,10 @@
         "function": "migrateAllAccountsToSharedScope"
       },
       {
+        "source": "/migrate/root",
+        "function": "migrateRootCollectionsToSharedScope"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

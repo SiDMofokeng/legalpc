@@ -298,3 +298,52 @@ export const migrateAllAccountsToSharedScope = onRequest(
     }
   }
 );
+
+/**
+ * Migrate from top-level collections into accounts/lpc-main/*
+ * Copies: users, chatbots, aiConfigs, knowledgeSources, tickets
+ */
+export const migrateRootCollectionsToSharedScope = onRequest(
+  {
+    region: 'us-central1',
+    secrets: [MIGRATION_TOKEN],
+    timeoutSeconds: 540,
+  },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST,OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-migration-token');
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ ok: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (!requireMigrationAuth(req, res)) return;
+
+    try {
+      const db = admin.firestore();
+      const collections = ['users', 'chatbots', 'aiConfigs', 'knowledgeSources', 'tickets'] as const;
+
+      const summary: any = { collections: {} as any };
+
+      for (const col of collections) {
+        const fromPath = col;
+        const toPath = `accounts/${ACCOUNT_SCOPE_ID}/${col}`;
+        const r = await copyCollection(db, fromPath, toPath);
+        summary.collections[col] = r;
+      }
+
+      res.status(200).json({ ok: true, summary });
+      return;
+    } catch (err: any) {
+      console.error('migration_root_error', err);
+      res.status(500).json({ ok: false, error: err?.message || String(err) });
+      return;
+    }
+  }
+);
