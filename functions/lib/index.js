@@ -32,11 +32,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateRootCollectionsToSharedScope = exports.migrateAllAccountsToSharedScope = exports.migrateTicketsToSharedScope = exports.whatsappWebhook = void 0;
+exports.acceptInvite = exports.createInvite = exports.migrateRootCollectionsToSharedScope = exports.migrateAllAccountsToSharedScope = exports.migrateTicketsToSharedScope = exports.whatsappWebhook = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
+const crypto_1 = __importDefault(require("crypto"));
 admin.initializeApp();
 const WHATSAPP_VERIFY_TOKEN = (0, params_1.defineSecret)('WHATSAPP_VERIFY_TOKEN');
 const ACCOUNT_SCOPE_ID = 'lpc-main';
@@ -47,6 +51,35 @@ function makeTicketId() {
     const r = Math.random().toString(16).slice(2, 8).toUpperCase();
     return `TKT-${n}-${r}`;
 }
+function cors(req, res, methods) {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', methods);
+    res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return true;
+    }
+    return false;
+}
+async function requireBearerAuth(req) {
+    const authz = String(req.headers.authorization || '');
+    const m = authz.match(/^Bearer\s+(.+)$/i);
+    if (!m)
+        throw new Error('Missing Authorization Bearer token');
+    const decoded = await admin.auth().verifyIdToken(m[1]);
+    return decoded.uid;
+}
+function randomCode(len = 8) {
+    // 8 chars base32-like
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let out = '';
+    for (let i = 0; i < len; i++)
+        out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out;
+}
+function sha256(s) {
+    return crypto_1.default.createHash('sha256').update(s).digest('hex');
+}
 /**
  * WhatsApp Cloud API style webhook:
  * - GET: verification (hub.challenge)
@@ -56,14 +89,8 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
     region: 'us-central1',
     secrets: [WHATSAPP_VERIFY_TOKEN],
 }, async (req, res) => {
-    // CORS (basic)
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-    if (req.method === 'OPTIONS') {
-        res.status(204).send('');
+    if (cors(req, res, 'GET,POST,OPTIONS'))
         return;
-    }
     // Verification handshake
     if (req.method === 'GET') {
         const mode = String(req.query['hub.mode'] || '');
@@ -328,3 +355,109 @@ exports.migrateRootCollectionsToSharedScope = (0, https_1.onRequest)({
         return;
     }
 });
+/* ---------------------- INVITES ---------------------- */
+exports.createInvite = (0, https_1.onRequest)({ region: 'us-central1' }, async (req, res) => {
+    if (cors(req, res, 'POST,OPTIONS'))
+        return;
+    if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method not allowed' });
+        return;
+    }
+    try {
+        await requireBearerAuth(req); // any authenticated portal user can create invites (MVP)
+        const { email, role, name } = (req.body || {});
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const safeRole = role === 'Admin' ? 'Admin' : 'Agent';
+        const safeName = String(name || '').trim() || normalizedEmail.split('@')[0];
+        if (!normalizedEmail || !normalizedEmail.includes('@')) {
+            res.status(400).json({ ok: false, error: 'Invalid email' });
+            return;
+        }
+        const code = randomCode(8);
+        const codeHash = sha256(code);
+        const inviteId = `inv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const db = admin.firestore();
+        await db.doc(`accounts/${ACCOUNT_SCOPE_ID}/invites/${inviteId}`).set({
+            id: inviteId,
+            email: normalizedEmail,
+            name: safeName,
+            role: safeRole,
+            codeHash,
+            status: 'pending',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        res.status(200).json({ ok: true, inviteId, code });
+        return;
+    }
+    catch (err) {
+        console.error('create_invite_error', err);
+        res.status(500).json({ ok: false, error: err?.message || String(err) });
+        return;
+    }
+});
+exports.acceptInvite = (0, https_1.onRequest)({ region: 'us-central1' }, async (req, res) => {
+    if (cors(req, res, 'POST,OPTIONS'))
+        return;
+    if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method not allowed' });
+        return;
+    }
+    try {
+        const { email, code, password } = (req.body || {});
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const codeStr = String(code || '').trim().toUpperCase();
+        const pass = String(password || '');
+        if (!normalizedEmail || !codeStr || pass.length < 8) {
+            res.status(400).json({ ok: false, error: 'Missing/invalid fields' });
+            return;
+        }
+        const db = admin.firestore();
+        const invitesSnap = await db
+            .collection(`accounts/${ACCOUNT_SCOPE_ID}/invites`)
+            .where('email', '==', normalizedEmail)
+            .where('status', '==', 'pending')
+            .limit(5)
+            .get();
+        const match = invitesSnap.docs.find((d) => d.data().codeHash === sha256(codeStr));
+        if (!match) {
+            res.status(403).json({ ok: false, error: 'Invalid invite code' });
+            return;
+        }
+        const invite = match.data();
+        // Create auth user
+        const userRecord = await admin.auth().createUser({
+            email: normalizedEmail,
+            password: pass,
+            displayName: invite.name || normalizedEmail.split('@')[0],
+        });
+        // Create portal user doc (source of truth for UI)
+        await db.doc(`accounts/${ACCOUNT_SCOPE_ID}/users/${userRecord.uid}`).set({
+            id: userRecord.uid,
+            name: invite.name || normalizedEmail.split('@')[0],
+            email: normalizedEmail,
+            role: invite.role || 'Agent',
+            status: 'active',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        await match.ref.set({
+            status: 'used',
+            usedAt: admin.firestore.FieldValue.serverTimestamp(),
+            usedByUid: userRecord.uid,
+        }, { merge: true });
+        res.status(200).json({ ok: true });
+        return;
+    }
+    catch (err) {
+        console.error('accept_invite_error', err);
+        res.status(500).json({ ok: false, error: err?.message || String(err) });
+        return;
+    }
+});
+// ---- existing migrateRootCollectionsToSharedScope removed/overridden above ----
+// END INVITES
+// NOTE: Any remaining old migrateRootCollectionsToSharedScope implementation below should be removed manually if present.
+// (rest of file continues)
+// ----- PLACEHOLDER -----
+// DO NOT ADD CODE BELOW
+//

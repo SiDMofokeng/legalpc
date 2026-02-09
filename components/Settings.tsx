@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import Card from './ui/Card';
 import AddUserModal from './AddUserModal';
 import type { User } from '../types';
-import { upsertUser, deleteUser } from '../services/firestoreStore';
+import { deleteUser } from '../services/firestoreStore';
+import { createInvite } from '../services/inviteService';
 
 interface SettingsProps {
     users: User[];
@@ -14,30 +15,18 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 
     const handleAddUser = async (name: string, email: string, role: 'Admin' | 'Agent') => {
-        const newUser: User = {
-            id: Date.now().toString(),
-            name,
-            email,
-            role,
-            avatar: `https://picsum.photos/100/100?a=${Date.now()}`,
-            status: 'pending'
-        };
-
-        // Optimistic UI
-        setUsers(prev => [...prev, newUser]);
+        // No dummy/local users. Create a real invite code via Cloud Function.
         setIsAddUserModalOpen(false);
 
         try {
-            await upsertUser(newUser);
+            const { code } = await createInvite({ name, email, role });
+            alert(
+              `INVITE CREATED\n\nEmail: ${email}\nRole: ${role}\n\nLogin code: ${code}\n\nNext steps:\n1) Tell the agent this code\n2) They go to Login → Invited to the team?\n3) Enter email + code + set password.`
+            );
         } catch (err: any) {
-            console.error('Failed to add user:', err);
-            // rollback
-            setUsers(prev => prev.filter(u => u.id !== newUser.id));
-            alert(`Could not add user: ${err?.message || 'Unknown error'}`);
-            return;
+            console.error('Failed to create invite:', err);
+            alert(`Could not create invite: ${err?.message || 'Unknown error'}`);
         }
-
-        alert(`SUCCESS: Invite Created for ${email}\n\nNo email is sent yet in this MVP.\n\nTo test the user flow:\n1. Log out\n2. Click "Invited to the team?" on the login page\n3. Enter ${email} to set a password.`);
     };
 
     const handleResendInvite = (email: string) => {
