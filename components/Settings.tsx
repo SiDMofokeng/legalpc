@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import Card from './ui/Card';
 import AddUserModal from './AddUserModal';
+import InviteResultModal from './InviteResultModal';
 import type { User } from '../types';
 import { deleteUser } from '../services/firestoreStore';
 import { createInvite } from '../services/inviteService';
@@ -13,6 +14,13 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+    const [inviteResult, setInviteResult] = useState<null | {
+        ok: boolean;
+        email?: string;
+        role?: string;
+        code?: string;
+        error?: string;
+    }>(null);
 
     const handleAddUser = async (name: string, email: string, role: 'Admin' | 'Agent') => {
         // No dummy/local users. Create a real invite code via Cloud Function.
@@ -20,12 +28,10 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
 
         try {
             const { code } = await createInvite({ name, email, role });
-            alert(
-              `INVITE CREATED\n\nEmail: ${email}\nRole: ${role}\n\nLogin code: ${code}\n\nNext steps:\n1) Tell the agent this code\n2) They go to Login → Invited to the team?\n3) Enter email + code + set password.`
-            );
+            setInviteResult({ ok: true, email, role, code });
         } catch (err: any) {
             console.error('Failed to create invite:', err);
-            alert(`Could not create invite: ${err?.message || 'Unknown error'}`);
+            setInviteResult({ ok: false, error: err?.message || 'Could not create invite.' });
         }
     };
 
@@ -121,6 +127,16 @@ const Settings: React.FC<SettingsProps> = ({ users, setUsers }) => {
             isOpen={isAddUserModalOpen}
             onClose={() => setIsAddUserModalOpen(false)}
             onAddUser={handleAddUser}
+        />
+
+        <InviteResultModal
+            isOpen={Boolean(inviteResult)}
+            title={inviteResult?.ok ? 'Invite Created' : 'Invite Failed'}
+            message={inviteResult?.ok ? 'Share this login code with the user to onboard them.' : inviteResult?.error}
+            email={inviteResult?.email}
+            role={inviteResult?.role}
+            code={inviteResult?.code}
+            onClose={() => setInviteResult(null)}
         />
         </>
     );
