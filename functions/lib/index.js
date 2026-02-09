@@ -34,15 +34,12 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.whatsappWebhook = void 0;
-const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const https_1 = require("firebase-functions/v2/https");
+const params_1 = require("firebase-functions/params");
 admin.initializeApp();
-function env(name, fallback) {
-    const v = process.env[name] || fallback;
-    if (!v)
-        throw new Error(`Missing env var: ${name}`);
-    return v;
-}
+const WHATSAPP_VERIFY_TOKEN = (0, params_1.defineSecret)('WHATSAPP_VERIFY_TOKEN');
+const DEFAULT_ACCOUNT_UID = (0, params_1.defineSecret)('DEFAULT_ACCOUNT_UID');
 function makeTicketId() {
     const n = Date.now();
     const r = Math.random().toString(16).slice(2, 8).toUpperCase();
@@ -53,7 +50,10 @@ function makeTicketId() {
  * - GET: verification (hub.challenge)
  * - POST: incoming messages/events
  */
-exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
+exports.whatsappWebhook = (0, https_1.onRequest)({
+    region: 'us-central1',
+    secrets: [WHATSAPP_VERIFY_TOKEN, DEFAULT_ACCOUNT_UID],
+}, async (req, res) => {
     // CORS (basic)
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -67,7 +67,7 @@ exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
         const mode = String(req.query['hub.mode'] || '');
         const token = String(req.query['hub.verify_token'] || '');
         const challenge = String(req.query['hub.challenge'] || '');
-        const verifyToken = env('WHATSAPP_VERIFY_TOKEN', functions.config()?.whatsapp?.verify_token);
+        const verifyToken = WHATSAPP_VERIFY_TOKEN.value().trim();
         if (mode === 'subscribe' && token === verifyToken) {
             res.status(200).send(challenge);
             return;
@@ -80,7 +80,7 @@ exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
         return;
     }
     try {
-        const defaultUid = env('DEFAULT_ACCOUNT_UID', functions.config()?.webhook?.default_uid);
+        const defaultUid = DEFAULT_ACCOUNT_UID.value();
         // Best-effort parse
         const body = req.body || {};
         // Extract something human-readable to create a ticket from.

@@ -1,13 +1,11 @@
-import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { onRequest } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 
 admin.initializeApp();
 
-function env(name: string, fallback?: string) {
-  const v = process.env[name] || fallback;
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
+const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN');
+const DEFAULT_ACCOUNT_UID = defineSecret('DEFAULT_ACCOUNT_UID');
 
 function makeTicketId() {
   const n = Date.now();
@@ -20,7 +18,12 @@ function makeTicketId() {
  * - GET: verification (hub.challenge)
  * - POST: incoming messages/events
  */
-export const whatsappWebhook = functions.https.onRequest(async (req, res) => {
+export const whatsappWebhook = onRequest(
+  {
+    region: 'us-central1',
+    secrets: [WHATSAPP_VERIFY_TOKEN, DEFAULT_ACCOUNT_UID],
+  },
+  async (req, res) => {
   // CORS (basic)
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -36,7 +39,7 @@ export const whatsappWebhook = functions.https.onRequest(async (req, res) => {
     const token = String(req.query['hub.verify_token'] || '');
     const challenge = String(req.query['hub.challenge'] || '');
 
-    const verifyToken = env('WHATSAPP_VERIFY_TOKEN', functions.config()?.whatsapp?.verify_token);
+    const verifyToken = WHATSAPP_VERIFY_TOKEN.value().trim();
 
     if (mode === 'subscribe' && token === verifyToken) {
       res.status(200).send(challenge);
@@ -52,7 +55,7 @@ export const whatsappWebhook = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const defaultUid = env('DEFAULT_ACCOUNT_UID', functions.config()?.webhook?.default_uid);
+    const defaultUid = DEFAULT_ACCOUNT_UID.value();
 
     // Best-effort parse
     const body: any = req.body || {};
@@ -130,4 +133,5 @@ export const whatsappWebhook = functions.https.onRequest(async (req, res) => {
     res.status(500).json({ ok: false, error: err?.message || String(err) });
     return;
   }
-});
+  }
+);
