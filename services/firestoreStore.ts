@@ -23,15 +23,19 @@ export type AccountProfile = {
     avatarDataUrl?: string;
 };
 
+// Single-account mode: all signed-in users operate on ONE Firestore account scope.
+// This must match the UID used by the WhatsApp webhook when writing tickets.
+const ACCOUNT_SCOPE_UID = "IMFpbePnzhhX6h4xP21cMGOPsjs1";
+
 function requireUid(): string {
-    const uid = auth.currentUser?.uid;
-    if (!uid) throw new Error("Not authenticated.");
-    return uid;
+    const authUid = auth.currentUser?.uid;
+    if (!authUid) throw new Error("Not authenticated.");
+    return ACCOUNT_SCOPE_UID;
 }
 
 /**
- * Storage layout (per signed-in Firebase user):
- * /accounts/{uid}/{collectionName}/{docId}
+ * Storage layout (single account scope):
+ * /accounts/{ACCOUNT_SCOPE_UID}/{collectionName}/{docId}
  */
 function userCollectionRef(name: CollectionName) {
     const uid = requireUid();
