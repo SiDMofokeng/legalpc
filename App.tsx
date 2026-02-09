@@ -23,8 +23,8 @@ import {
   getUsers,
   seedUsersIfEmpty,
   getTickets,
-  seedTicketsIfEmpty,
   subscribeTickets,
+  deleteTicketsById,
   getAccountProfile,
 } from "./services/firestoreStore";
 
@@ -341,13 +341,24 @@ function App() {
         const ks = await getKnowledgeSources();
         setSources(ks);
 
-        // 5) Tickets: load (and seed exactly 3 if empty)
+        // 5) Tickets: load
         setTicketsLoading(true);
-        let ts = await getTickets();
-        if (ts.length === 0) {
-          await seedTicketsIfEmpty(seedTickets);
-          ts = await getTickets();
+
+        // One-time cleanup: remove demo/seeded tickets so we only see real ones.
+        // (User explicitly requested this.)
+        const cleanupKey = `lpc_demo_tickets_removed_v1_${u.uid}`;
+        if (!window.localStorage.getItem(cleanupKey)) {
+          try {
+            await deleteTicketsById(['TKT-001', 'TKT-002', 'TKT-003']);
+          } catch {
+            // Ignore if they don't exist or rules block deletes
+          } finally {
+            window.localStorage.setItem(cleanupKey, '1');
+          }
         }
+
+        // Initial fetch (fast)
+        const ts = await getTickets();
         setTickets(ts);
         setTicketsLoading(false);
 

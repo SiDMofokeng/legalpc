@@ -322,6 +322,16 @@ export async function deleteTicket(ticketId: string): Promise<void> {
     await deleteDoc(ref);
 }
 
+export async function deleteTicketsById(ids: string[]): Promise<void> {
+    const uid = requireUid();
+    const batch = writeBatch(db);
+    for (const id of ids) {
+        const ref = doc(db, 'accounts', uid, 'tickets', id);
+        batch.delete(ref);
+    }
+    await batch.commit();
+}
+
 export async function seedTicketsIfEmpty(tickets: Ticket[]): Promise<boolean> {
     const existing = await getDocs(userCollectionRef('tickets'));
     if (!existing.empty) return false;
