@@ -10,6 +10,7 @@ import {
     query,
     orderBy,
     deleteDoc,
+    onSnapshot,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import type { Chatbot, User, AIConfig, KnowledgeSource, Ticket, ChatMessage, TicketActivity } from "../types";
@@ -275,6 +276,17 @@ export async function getTickets(): Promise<Ticket[]> {
     return snap.docs.map((d) => {
         const data = d.data() as any;
         return { id: data.id || d.id, ...data } as Ticket;
+    });
+}
+
+export function subscribeTickets(onChange: (tickets: Ticket[]) => void): () => void {
+    const q = query(userCollectionRef('tickets'), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => {
+        const items = snap.docs.map((d) => {
+            const data = d.data() as any;
+            return { id: data.id || d.id, ...data } as Ticket;
+        });
+        onChange(items);
     });
 }
 

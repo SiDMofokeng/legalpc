@@ -24,6 +24,7 @@ import {
   seedUsersIfEmpty,
   getTickets,
   seedTicketsIfEmpty,
+  subscribeTickets,
   getAccountProfile,
 } from "./services/firestoreStore";
 
@@ -295,7 +296,15 @@ function App() {
 
   // Firestore load on login
   useEffect(() => {
+    let ticketsUnsub: null | (() => void) = null;
+
     const unsub = onAuthStateChanged(auth, async (u) => {
+      // clean previous listener
+      if (ticketsUnsub) {
+        ticketsUnsub();
+        ticketsUnsub = null;
+      }
+
       if (!u) return;
 
       // Always keep header in sync with auth user as a baseline
@@ -341,6 +350,12 @@ function App() {
         }
         setTickets(ts);
         setTicketsLoading(false);
+
+        // Realtime: keep tickets updated (webhook-created tickets show instantly)
+        ticketsUnsub = subscribeTickets((items) => {
+          setTickets(items);
+          setTicketsLoading(false);
+        });
       } catch (err) {
         console.error("Firestore load failed:", err);
         setTicketsLoading(false);
@@ -348,7 +363,10 @@ function App() {
       }
     });
 
-    return () => unsub();
+    return () => {
+      if (ticketsUnsub) ticketsUnsub();
+      unsub();
+    };
   }, []);
 
   // Listen for Profile saves so the header updates instantly
