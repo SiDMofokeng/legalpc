@@ -13,7 +13,7 @@ const statusClasses: Record<Ticket['status'], string> = {
 };
 
 const baseSelectClasses =
-  'w-full px-8 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-[#C79A2A]/40 capitalize appearance-none text-center cursor-pointer hover:opacity-90';
+  'w-full px-6 py-1.5 text-[11px] font-semibold rounded-full border-0 focus:ring-2 focus:ring-[#C79A2A]/40 capitalize appearance-none text-center cursor-pointer hover:opacity-90 whitespace-nowrap';
 
 type TicketsProps = {
   tickets: Ticket[];
@@ -129,12 +129,12 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
   return (
     <Card>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <th
                 scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                className="w-[170px] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
               >
                 Ticket ID
               </th>
@@ -152,13 +152,13 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
               </th>
               <th
                 scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                className="w-[150px] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
               >
                 Status
               </th>
               <th
                 scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                className="w-[170px] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
               >
                 Agent
               </th>
@@ -176,9 +176,19 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
               <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td
                   onClick={() => setSelectedTicketId(ticket.id)}
-                  className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400 cursor-pointer"
+                  className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#C79A2A] cursor-pointer"
                 >
-                  {ticket.id}
+                  {(() => {
+                    // Short ID for layout: TKT-001, TKT-002... based on createdAt ordering
+                    const sorted = [...tickets].sort((a: any, b: any) => {
+                      const ax = a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : Date.parse(a?.createdAt) || 0;
+                      const bx = b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : Date.parse(b?.createdAt) || 0;
+                      return ax - bx;
+                    });
+                    const idx = sorted.findIndex((t) => t.id === ticket.id);
+                    const n = idx >= 0 ? idx + 1 : 0;
+                    return `TKT-${String(n).padStart(3, '0')}`;
+                  })()}
                   {savingId === ticket.id ? (
                     <span className="ml-2 text-[10px] text-slate-400">saving…</span>
                   ) : null}
@@ -228,7 +238,7 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
                       title="Click to assign/change agent"
                       value={ticket.agent || 'Unassigned'}
                       onChange={(e) => handleAgentChange(ticket.id, e.target.value)}
-                      className="w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-[#C79A2A]/60 focus:ring-2 focus:ring-[#C79A2A]/40 rounded-md px-2 py-1 text-sm text-gray-600 dark:text-gray-300 cursor-pointer"
+                      className="w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-[#C79A2A]/60 focus:ring-2 focus:ring-[#C79A2A]/40 rounded-md px-2 py-1 text-[12px] font-semibold text-gray-700 dark:text-gray-200 cursor-pointer"
                     >
                       {(() => {
                         const activeAgents = users
