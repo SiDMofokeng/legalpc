@@ -346,7 +346,7 @@ function App() {
 
         // One-time cleanup: remove demo/seeded tickets so we only see real ones.
         // (User explicitly requested this.)
-        const cleanupKey = `lpc_demo_tickets_removed_v1_${u.uid}`;
+        const cleanupKey = `lpc_demo_tickets_removed_v1`;
         if (!window.localStorage.getItem(cleanupKey)) {
           try {
             await deleteTicketsById(['TKT-001', 'TKT-002', 'TKT-003']);

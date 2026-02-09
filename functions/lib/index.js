@@ -33,13 +33,15 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.whatsappWebhook = void 0;
+exports.migrateTicketsToSharedScope = exports.whatsappWebhook = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 admin.initializeApp();
 const WHATSAPP_VERIFY_TOKEN = (0, params_1.defineSecret)('WHATSAPP_VERIFY_TOKEN');
-const DEFAULT_ACCOUNT_UID = (0, params_1.defineSecret)('DEFAULT_ACCOUNT_UID');
+const ACCOUNT_SCOPE_ID = 'lpc-main';
+const LEGACY_UID_SCOPE = 'IMFpbePnzhhX6h4xP21cMGOPsjs1';
+const MIGRATION_TOKEN = (0, params_1.defineSecret)('MIGRATION_TOKEN');
 function makeTicketId() {
     const n = Date.now();
     const r = Math.random().toString(16).slice(2, 8).toUpperCase();
@@ -52,7 +54,7 @@ function makeTicketId() {
  */
 exports.whatsappWebhook = (0, https_1.onRequest)({
     region: 'us-central1',
-    secrets: [WHATSAPP_VERIFY_TOKEN, DEFAULT_ACCOUNT_UID],
+    secrets: [WHATSAPP_VERIFY_TOKEN],
 }, async (req, res) => {
     // CORS (basic)
     res.set('Access-Control-Allow-Origin', '*');
@@ -80,7 +82,7 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
         return;
     }
     try {
-        const defaultUid = DEFAULT_ACCOUNT_UID.value();
+        const defaultUid = ACCOUNT_SCOPE_ID;
         // Best-effort parse
         const body = req.body || {};
         // Extract something human-readable to create a ticket from.
@@ -155,6 +157,51 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
             error: err?.message || String(err),
             stack: err?.stack || null,
         });
+        return;
+    }
+});
+/**
+ * One-time migration: copy legacy UID-scoped tickets into the shared account scope.
+ * Call: POST /migrate/tickets with header x-migration-token: <token>
+ */
+exports.migrateTicketsToSharedScope = (0, https_1.onRequest)({
+    region: 'us-central1',
+    secrets: [MIGRATION_TOKEN],
+}, async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST,OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-migration-token');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({ ok: false, error: 'Method not allowed' });
+        return;
+    }
+    const token = String(req.headers['x-migration-token'] || '');
+    if (!token || token !== MIGRATION_TOKEN.value().trim()) {
+        res.status(403).json({ ok: false, error: 'Forbidden' });
+        return;
+    }
+    try {
+        const db = admin.firestore();
+        const fromCol = db.collection(`accounts/${LEGACY_UID_SCOPE}/tickets`);
+        const toCol = db.collection(`accounts/${ACCOUNT_SCOPE_ID}/tickets`);
+        const snap = await fromCol.get();
+        let copied = 0;
+        const batch = db.batch();
+        snap.docs.forEach((d) => {
+            batch.set(toCol.doc(d.id), d.data(), { merge: true });
+            copied++;
+        });
+        await batch.commit();
+        res.status(200).json({ ok: true, copied });
+        return;
+    }
+    catch (err) {
+        console.error('migration_error', err);
+        res.status(500).json({ ok: false, error: err?.message || String(err) });
         return;
     }
 });
