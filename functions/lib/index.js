@@ -149,8 +149,12 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
         return;
     }
     catch (err) {
-        console.error(err);
-        res.status(500).json({ ok: false, error: err?.message || String(err) });
+        console.error('webhook_error', err);
+        res.status(500).json({
+            ok: false,
+            error: err?.message || String(err),
+            stack: err?.stack || null,
+        });
         return;
     }
 });

@@ -129,8 +129,12 @@ export const whatsappWebhook = onRequest(
     res.status(200).json({ ok: true, ticketId });
     return;
   } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ ok: false, error: err?.message || String(err) });
+    console.error('webhook_error', err);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || String(err),
+      stack: err?.stack || null,
+    });
     return;
   }
   }
