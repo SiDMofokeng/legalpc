@@ -433,6 +433,7 @@ function App() {
         // No conversation log exists yet. Use tickets count as the only real proxy for inbound interactions.
         const totalConversations = tickets.length;
         const activeBotsCount = chatbots.filter((b) => b.status === 'active').length;
+        const inactiveBotsCount = chatbots.filter((b) => b.status !== 'active').length;
         const knowledgeSyncedCount = sources.filter((s) => s.status === 'synced').length;
         const knowledgePendingCount = sources.filter((s) => s.status === 'pending').length;
 
@@ -441,6 +442,7 @@ function App() {
             tickets={tickets}
             totalConversations={totalConversations}
             activeBotsCount={activeBotsCount}
+            inactiveBotsCount={inactiveBotsCount}
             knowledgeSyncedCount={knowledgeSyncedCount}
             knowledgePendingCount={knowledgePendingCount}
           />
