@@ -17,11 +17,9 @@ import { auth } from "./services/firebase";
 
 import {
   getChatbots,
-  seedChatbotsIfEmpty,
   getAiConfigs,
   getKnowledgeSources,
   getUsers,
-  seedUsersIfEmpty,
   getTickets,
   subscribeTickets,
   deleteTicketsById,
@@ -252,18 +250,11 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
 
   // Local UI state (we’ll load/overwrite these from Firestore after login)
-  const [users, setUsers] = useState<User[]>(() =>
-    getInitialState("app_users", initialUsers)
-  );
-  const [chatbots, setChatbots] = useState<Chatbot[]>(() =>
-    getInitialState("app_chatbots", initialChatbots)
-  );
-  const [sources, setSources] = useState<KnowledgeSource[]>(() =>
-    getInitialState("app_sources", initialKnowledgeSources)
-  );
-  const [aiConfigs, setAiConfigs] = useState<AIConfig[]>(() =>
-    getInitialState("app_aiConfigs", initialAiConfigs)
-  );
+  // No local/demo defaults. Firestore is the source of truth.
+  const [users, setUsers] = useState<User[]>([]);
+  const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+  const [sources, setSources] = useState<KnowledgeSource[]>([]);
+  const [aiConfigs, setAiConfigs] = useState<AIConfig[]>([]);
 
   // Tickets: Firestore-backed (no localStorage source of truth)
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -277,22 +268,7 @@ function App() {
     auth.currentUser?.photoURL || undefined
   );
 
-  // Save state to localStorage (optional cache)
-  useEffect(() => {
-    window.localStorage.setItem("app_users", JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    window.localStorage.setItem("app_chatbots", JSON.stringify(chatbots));
-  }, [chatbots]);
-
-  useEffect(() => {
-    window.localStorage.setItem("app_sources", JSON.stringify(sources));
-  }, [sources]);
-
-  useEffect(() => {
-    window.localStorage.setItem("app_aiConfigs", JSON.stringify(aiConfigs));
-  }, [aiConfigs]);
+  // No localStorage cache: admin portal must reflect real system state.
 
   // Firestore load on login
   useEffect(() => {
@@ -317,20 +293,12 @@ function App() {
         if (p?.displayName) setHeaderProfileName(p.displayName);
         if (p?.avatarDataUrl) setHeaderAvatarUrl(p.avatarDataUrl);
 
-        // 1) Chatbots: load (and seed once if empty)
-        let bots = await getChatbots();
-        if (bots.length === 0) {
-          await seedChatbotsIfEmpty(initialChatbots);
-          bots = await getChatbots();
-        }
+        // 1) Chatbots: load (no demo seeding)
+        const bots = await getChatbots();
         setChatbots(bots);
 
-        // 2) Users: load (and seed once if empty)
-        let usrs = await getUsers();
-        if (usrs.length === 0) {
-          await seedUsersIfEmpty(initialUsers);
-          usrs = await getUsers();
-        }
+        // 2) Users: load (no demo seeding)
+        const usrs = await getUsers();
         setUsers(usrs);
 
         // 3) AI Configs: load
@@ -357,12 +325,8 @@ function App() {
           }
         }
 
-        // Initial fetch (fast)
-        const ts = await getTickets();
-        setTickets(ts);
-        setTicketsLoading(false);
-
         // Realtime: keep tickets updated (webhook-created tickets show instantly)
+        // (Initial snapshot will populate state.)
         ticketsUnsub = subscribeTickets((items) => {
           setTickets(items);
           setTicketsLoading(false);
@@ -452,7 +416,8 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case "dashboard": {
-        const totalConversations = chatbots.reduce((sum, b) => sum + (Number(b.conversations) || 0), 0);
+        // No conversation log exists yet. Use tickets count as the only real proxy for inbound interactions.
+        const totalConversations = tickets.length;
         const activeBotsCount = chatbots.filter((b) => b.status === 'active').length;
         const knowledgeSyncedCount = sources.filter((s) => s.status === 'synced').length;
         const knowledgePendingCount = sources.filter((s) => s.status === 'pending').length;
@@ -491,7 +456,7 @@ function App() {
         );
 
       case "analytics":
-        return <Analytics />;
+        return <Analytics tickets={tickets} />;
 
       case "tickets":
         return (

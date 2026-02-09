@@ -9,40 +9,41 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import type { Ticket } from '../types';
 import { CalendarIcon } from './icons/CalendarIcon';
 
-// --- Mock Data for different timeframes ---
-const weeklyData = [
-  { name: 'Mon', conversations: 400 },
-  { name: 'Tue', conversations: 300 },
-  { name: 'Wed', conversations: 200 },
-  { name: 'Thu', conversations: 278 },
-  { name: 'Fri', conversations: 189 },
-  { name: 'Sat', conversations: 239 },
-  { name: 'Sun', conversations: 349 },
-];
+type Point = { name: string; conversations: number };
 
-const dailyData = [
-    { name: '12am', conversations: 10 }, { name: '3am', conversations: 15 },
-    { name: '6am', conversations: 30 }, { name: '9am', conversations: 80 },
-    { name: '12pm', conversations: 120 }, { name: '3pm', conversations: 100 },
-    { name: '6pm', conversations: 90 }, { name: '9pm', conversations: 40 },
-];
+function ymd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
-const monthlyData = [
-    { name: 'Week 1', conversations: 1200 }, { name: 'Week 2', conversations: 1500 },
-    { name: 'Week 3', conversations: 1100 }, { name: 'Week 4', conversations: 1800 },
-];
+function lastNDays(n: number): string[] {
+  const out: string[] = [];
+  const now = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    out.push(ymd(d));
+  }
+  return out;
+}
 
-const hourlyDataForDay = [
-    { name: '1am', conversations: 5 }, { name: '2am', conversations: 3 },
-    { name: '3am', conversations: 7 }, { name: '4am', conversations: 4 },
-    { name: '5am', conversations: 10 }, { name: '6am', conversations: 15 },
-    { name: '7am', conversations: 25 }, { name: '8am', conversations: 40 },
-    { name: '9am', conversations: 60 }, { name: '10am', conversations: 75 },
-    { name: '11am', conversations: 80 }, { name: '12pm', conversations: 90 },
-];
+function buildWeeklyFromTickets(tickets: Ticket[]): Point[] {
+  const days = lastNDays(7);
+  const map = new Map<string, number>();
+  days.forEach((d) => map.set(d, 0));
 
+  for (const t of tickets) {
+    const d = String((t as any).lastUpdate || '').slice(0, 10);
+    if (map.has(d)) map.set(d, (map.get(d) || 0) + 1);
+  }
 
-const mockRecentTickets: Pick<Ticket, 'id' | 'customerName' | 'subject' | 'status'>[] = [];
+  return days.map((d) => {
+    const label = d.slice(5);
+    return { name: label, conversations: map.get(d) || 0 };
+  });
+}
 
 const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string; description: string }> = ({ icon, title, value, description }) => (
     <Card className="h-full">
@@ -100,7 +101,7 @@ const CalendarPopover: React.FC<{
                     key={i}
                     onClick={() => onSelectDate(dayDate)}
                     className={`w-8 h-8 flex items-center justify-center rounded-full text-sm ${
-                        isToday ? 'bg-blue-600 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-600'
+                        isToday ? 'bg-[#0A2A1F] text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                     {i}
@@ -151,20 +152,22 @@ const Dashboard: React.FC<{
     const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
     const chartDetails = useMemo(() => {
+        // Real data only: we don’t have a conversation log yet.
+        // Use ticket count per day as the proxy for inbound interactions.
+        const weekly = buildWeeklyFromTickets(tickets);
+
         if (selectedDate) {
+            const k = ymd(selectedDate).slice(5);
+            const d = weekly.find((x) => x.name === k);
             return {
-                title: `Conversations for ${selectedDate.toLocaleDateString()}`,
-                data: hourlyDataForDay,
+                title: `Tickets for ${selectedDate.toLocaleDateString()}`,
+                data: [{ name: k, conversations: d?.conversations || 0 }],
                 activeFilter: selectedDate.toISOString(),
             };
         }
-        switch (timeframe) {
-            case 'daily': return { title: 'Conversations Today', data: dailyData, activeFilter: 'daily' };
-            case 'monthly': return { title: 'Conversations This Month', data: monthlyData, activeFilter: 'monthly' };
-            case 'weekly':
-            default: return { title: 'Conversations This Week', data: weeklyData, activeFilter: 'weekly' };
-        }
-    }, [timeframe, selectedDate]);
+
+        return { title: 'Tickets (Last 7 days)', data: weekly, activeFilter: 'weekly' };
+    }, [tickets, selectedDate]);
     
     const handleTimeframeChange = (newTimeframe: Timeframe) => {
         setTimeframe(newTimeframe);
@@ -229,9 +232,7 @@ const Dashboard: React.FC<{
                      <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
                         <h3 className="font-semibold text-gray-900 dark:text-white">{chartDetails.title}</h3>
                         <div className="flex items-center gap-2 relative">
-                            <TimeframeButton filter="daily" label="Daily" />
-                            <TimeframeButton filter="weekly" label="Weekly" />
-                            <TimeframeButton filter="monthly" label="Monthly" />
+                            <TimeframeButton filter="weekly" label="Last 7 days" />
                             <button 
                                 onClick={() => setIsCalendarOpen(prev => !prev)}
                                 className={`p-2 rounded-lg transition-colors ${isCalendarOpen || selectedDate ? 'bg-[#0A2A1F] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}

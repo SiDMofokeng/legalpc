@@ -13,7 +13,6 @@ import {
     upsertChatbot as fsUpsertChatbot,
     updateChatbot as fsUpdateChatbot,
     deleteChatbot as fsDeleteChatbot,
-    seedChatbotsIfEmpty as fsSeedChatbotsIfEmpty,
 } from "../services/firestoreStore";
 
 interface ChatbotsProps {
@@ -71,15 +70,15 @@ const BotCard: React.FC<{
 
         <div className="mt-4 grid grid-cols-3 gap-4 text-center">
             <div>
-                <p className="text-2xl font-semibold">{bot.conversations}</p>
+                <p className="text-2xl font-semibold">—</p>
                 <p className="text-xs text-gray-500">Conversations</p>
             </div>
             <div>
-                <p className="text-2xl font-semibold">{bot.responseRate}%</p>
+                <p className="text-2xl font-semibold">—</p>
                 <p className="text-xs text-gray-500">Response Rate</p>
             </div>
             <div>
-                <p className="text-2xl font-semibold">{bot.knowledgeSources}</p>
+                <p className="text-2xl font-semibold">{bot.knowledgeSources ?? 0}</p>
                 <p className="text-xs text-gray-500">Sources</p>
             </div>
         </div>
@@ -133,30 +132,15 @@ const Chatbots: React.FC<ChatbotsProps> = ({
 
     const [loading, setLoading] = useState(true);
 
-    // ---- Firestore: load chatbots (and seed once if empty) ----
+    // ---- Firestore: load chatbots (no demo seeding) ----
     useEffect(() => {
         let cancelled = false;
 
         const load = async () => {
             try {
                 setLoading(true);
-
                 const remote = await fsGetChatbots();
-                if (!cancelled && remote.length > 0) {
-                    setChatbots(remote);
-                    return;
-                }
-
-                // If empty in Firestore, seed ONCE from what we currently have (demo list / local state)
-                // then load again.
-                const seeded = await fsSeedChatbotsIfEmpty(chatbots);
-                if (seeded) {
-                    const afterSeed = await fsGetChatbots();
-                    if (!cancelled) setChatbots(afterSeed);
-                } else {
-                    // Firestore empty but seed didn't run (shouldn't happen often) — just keep current
-                    if (!cancelled) setChatbots(chatbots);
-                }
+                if (!cancelled) setChatbots(remote);
             } catch (err: any) {
                 console.error("Failed to load chatbots from Firestore:", err);
                 alert(`Could not load chatbots: ${err?.message || "Unknown error"}`);

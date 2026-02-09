@@ -2,19 +2,27 @@ import React from 'react';
 import Card from './ui/Card';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
-const ticketStatusData = [
-  { name: 'Resolved', value: 400 },
-  { name: 'Open', value: 150 },
-  { name: 'In Progress', value: 75 },
-];
+import type { Ticket } from '../types';
 
-const conversationSourceData = [
-  { subject: 'Pricing', A: 120, B: 110, fullMark: 150 },
-  { subject: 'Support', A: 98, B: 130, fullMark: 150 },
-  { subject: 'Sales', A: 86, B: 130, fullMark: 150 },
-  { subject: 'Onboarding', A: 99, B: 100, fullMark: 150 },
-  { subject: 'Other', A: 85, B: 90, fullMark: 150 },
-];
+function buildTicketStatusData(tickets: Ticket[]) {
+  const counts = {
+    resolved: 0,
+    open: 0,
+    in_progress: 0,
+    closed: 0,
+  } as any;
+
+  for (const t of tickets) {
+    if (t.status in counts) counts[t.status] += 1;
+  }
+
+  return [
+    { name: 'Resolved', value: counts.resolved },
+    { name: 'Open', value: counts.open },
+    { name: 'In Progress', value: counts.in_progress },
+    { name: 'Closed', value: counts.closed },
+  ].filter((x) => x.value > 0);
+}
 
 const COLORS = ['#C79A2A', '#F08A24', '#0A2A1F'];
 
@@ -42,28 +50,33 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
 };
 
 
-const Analytics: React.FC = () => {
+const Analytics: React.FC<{ tickets: Ticket[] }> = ({ tickets }) => {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <Card className="lg:col-span-2 h-96" noClip>
                     <h3 className="font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">Ticket Status</h3>
-                    <ResponsiveContainer width="100%" height="90%">
-                        <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-                            <Pie
-                                data={ticketStatusData}
-                                cx="45%"
-                                cy="50%"
-                                labelLine={false}
-                                label={renderCustomizedLabel}
-                                outerRadius={110}
-                                fill="#C79A2A"
-                                dataKey="value"
-                            >
-                                {ticketStatusData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
+                    {buildTicketStatusData(tickets).length === 0 ? (
+                      <div className="h-[85%] flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                        No ticket analytics yet.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="90%">
+                          <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+                              <Pie
+                                  data={buildTicketStatusData(tickets)}
+                                  cx="45%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                  outerRadius={110}
+                                  fill="#C79A2A"
+                                  dataKey="value"
+                              >
+                                  {buildTicketStatusData(tickets).map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                              </Pie>
                             <Tooltip
                                 contentStyle={{
                                     backgroundColor: 'rgba(11, 15, 20, 0.8)',
@@ -78,25 +91,14 @@ const Analytics: React.FC = () => {
                                 iconType="circle"
                             />
                         </PieChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    )}
                 </Card>
                 <Card className="lg:col-span-3 h-96" noClip>
                     <h3 className="font-extrabold text-gray-900 dark:text-white mb-4 tracking-tight">Conversation Topics</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="52%" outerRadius="72%" data={conversationSourceData}>
-                            <PolarGrid />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#6b7280', fontSize: 12 }} />
-                            <PolarRadiusAxis tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                            <Radar name="This Month" dataKey="A" stroke="#F08A24" fill="#F08A24" fillOpacity={0.55} />
-                             <Tooltip
-                                contentStyle={{
-                                    backgroundColor: 'rgba(11, 15, 20, 0.8)',
-                                    borderColor: 'rgba(255, 255, 255, 0.12)',
-                                    borderRadius: '0.75rem'
-                                }}
-                            />
-                        </RadarChart>
-                    </ResponsiveContainer>
+                    <div className="h-[85%] flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      No conversation topic analytics yet (needs conversation logs).
+                    </div>
                 </Card>
             </div>
             
