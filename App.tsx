@@ -498,6 +498,7 @@ function App() {
           <Tickets
             tickets={tickets}
             setTickets={setTickets}
+            users={users}
             loading={ticketsLoading}
           />
         );

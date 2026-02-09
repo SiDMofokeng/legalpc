@@ -1,17 +1,9 @@
-import React, { useState } from 'react';
-import type { Ticket, ChatMessage } from '../types';
+import React, { useMemo, useState } from 'react';
+import type { Ticket } from '../types';
 import Card from './ui/Card';
 import TicketConversation from './TicketConversation';
 import { upsertTicket } from '../services/firestoreStore';
-
-const mockAgents = [
-  'Unassigned',
-  'Demo User',
-  'Alex Green',
-  'Maria Garcia',
-  'Support Bot',
-  'Sales Bot',
-];
+import type { User } from '../types';
 
 const statusClasses: Record<Ticket['status'], string> = {
   open: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
@@ -21,15 +13,16 @@ const statusClasses: Record<Ticket['status'], string> = {
 };
 
 const baseSelectClasses =
-  'w-full px-8 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-blue-500 capitalize appearance-none text-center cursor-pointer hover:opacity-90';
+  'w-full px-8 py-1 text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-[#C79A2A]/40 capitalize appearance-none text-center cursor-pointer hover:opacity-90';
 
 type TicketsProps = {
   tickets: Ticket[];
   setTickets: React.Dispatch<React.SetStateAction<Ticket[]>>;
+  users: User[];
   loading?: boolean;
 };
 
-const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, loading }) => {
+const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -52,6 +45,18 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, loading }) => {
     await persist(updatedTicket);
   };
 
+  const actorName = useMemo(() => {
+    // Prefer the current signed-in user's name if present in the users list
+    // (fallback keeps old behavior but avoids dummy names)
+    const meEmail = (window as any).__lpc_me_email as string | undefined;
+    if (meEmail) {
+      const u = users.find((x) => x.email === meEmail);
+      if (u?.name) return u.name;
+    }
+    const admin = users.find((u) => u.role === 'Admin' && u.status === 'active');
+    return admin?.name || users.find((u) => u.status === 'active')?.name || 'System';
+  }, [users]);
+
   const handleStatusChange = async (ticketId: string, newStatus: Ticket['status']) => {
     const current = tickets.find((t) => t.id === ticketId);
     if (!current) return;
@@ -64,7 +69,7 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, loading }) => {
         ...current.history,
         {
           id: Date.now().toString(),
-          user: 'Demo User',
+          user: actorName,
           action: `changed status from ${current.status.replace('_', ' ')} to ${newStatus.replace('_', ' ')}`,
           timestamp: new Date().toISOString(),
         },
@@ -87,7 +92,7 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, loading }) => {
         ...current.history,
         {
           id: Date.now().toString(),
-          user: 'Demo User',
+          user: actorName,
           action: `assigned agent to ${newAgent}`,
           timestamp: new Date().toISOString(),
         },
@@ -221,15 +226,25 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, loading }) => {
                   <div className="relative inline-block w-full" onClick={(e) => e.stopPropagation()}>
                     <select
                       title="Click to assign/change agent"
-                      value={ticket.agent}
+                      value={ticket.agent || 'Unassigned'}
                       onChange={(e) => handleAgentChange(ticket.id, e.target.value)}
-                      className="w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 text-sm text-gray-600 dark:text-gray-300 cursor-pointer"
+                      className="w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-[#C79A2A]/60 focus:ring-2 focus:ring-[#C79A2A]/40 rounded-md px-2 py-1 text-sm text-gray-600 dark:text-gray-300 cursor-pointer"
                     >
-                      {mockAgents.map((agent) => (
-                        <option key={agent} value={agent}>
-                          {agent}
-                        </option>
-                      ))}
+                      {(() => {
+                        const activeAgents = users
+                          .filter((u) => u.status === 'active')
+                          .map((u) => u.name)
+                          .filter(Boolean);
+                        const base = ['Unassigned', ...activeAgents];
+                        // Ensure current value is always present, even if user was deleted
+                        const current = ticket.agent && !base.includes(ticket.agent) ? [ticket.agent, ...base] : base;
+                        const deduped = Array.from(new Set(current));
+                        return deduped.map((agent) => (
+                          <option key={agent} value={agent}>
+                            {agent}
+                          </option>
+                        ));
+                      })()}
                     </select>
                     <svg
                       className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
