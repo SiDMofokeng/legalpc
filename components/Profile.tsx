@@ -61,22 +61,74 @@ const Profile: React.FC = () => {
         };
     }, []);
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    async function resizeToAvatarDataUrl(file: File): Promise<string> {
+        // Quick client-side compression to avoid Firestore 1MB doc limit.
+        // Target: <= 320px square, JPEG quality tuned down.
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error('Could not read file'));
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.readAsDataURL(file);
+        });
+
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const i = new Image();
+            i.onload = () => resolve(i);
+            i.onerror = () => reject(new Error('Could not load image'));
+            i.src = dataUrl;
+        });
+
+        const max = 320;
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const scale = Math.min(1, max / Math.max(w, h));
+        const tw = Math.max(1, Math.round(w * scale));
+        const th = Math.max(1, Math.round(h * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = tw;
+        canvas.height = th;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas not supported');
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, tw, th);
+
+        // Try a few quality levels until we get under the safe threshold.
+        const qualities = [0.82, 0.72, 0.62, 0.52];
+        for (const q of qualities) {
+            const out = canvas.toDataURL('image/jpeg', q);
+            if (out.length <= 250_000) return out;
+        }
+
+        // Last resort: smaller size
+        const canvas2 = document.createElement('canvas');
+        canvas2.width = 256;
+        canvas2.height = Math.max(1, Math.round((256 / tw) * th));
+        const ctx2 = canvas2.getContext('2d');
+        if (!ctx2) throw new Error('Canvas not supported');
+        ctx2.imageSmoothingEnabled = true;
+        ctx2.imageSmoothingQuality = 'high';
+        ctx2.drawImage(img, 0, 0, canvas2.width, canvas2.height);
+        const out2 = canvas2.toDataURL('image/jpeg', 0.58);
+        if (out2.length <= 250_000) return out2;
+
+        throw new Error('That image is still too large after compression. Please choose a smaller image.');
+    }
+
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         setDirty((d) => ({ ...d, avatar: true }));
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            // Firestore document limit is 1MB. Keep this conservative.
-            if (dataUrl && dataUrl.length > 250_000) {
-                alert('That image is too large to store as a profile avatar right now. Please use a smaller image.');
-                return;
-            }
-            setAvatarPreview(dataUrl);
-        };
-        reader.readAsDataURL(file);
+        try {
+            const compressed = await resizeToAvatarDataUrl(file);
+            setAvatarPreview(compressed);
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.message || 'Could not process that image');
+        }
     };
 
     const handleSaveProfile = async (e: React.FormEvent) => {
