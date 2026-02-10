@@ -20,9 +20,10 @@ type TicketsProps = {
   setTickets: React.Dispatch<React.SetStateAction<Ticket[]>>;
   users: User[];
   loading?: boolean;
+  isAdmin?: boolean;
 };
 
-const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }) => {
+const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading, isAdmin = false }) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -52,8 +53,6 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
     const email = String(meEmail).toLowerCase();
     return users.find((x) => String(x.email || '').toLowerCase() === email) || null;
   }, [users, meEmail]);
-
-  const isAdmin = meUser?.role === 'Admin';
 
   const actorName = useMemo(() => {
     // Prefer the current signed-in user's name if present in the users list

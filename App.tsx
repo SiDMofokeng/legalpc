@@ -571,6 +571,7 @@ function App() {
             setTickets={setTickets}
             users={users}
             loading={ticketsLoading}
+            isAdmin={isAdmin}
           />
         );
 
