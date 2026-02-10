@@ -275,7 +275,7 @@ function sanitizeTicketActivity(a: TicketActivity): any {
 }
 
 function sanitizeTicket(t: Ticket): any {
-    return {
+    const out: any = {
         id: t.id,
         customerName: t.customerName,
         subject: t.subject,
@@ -286,6 +286,8 @@ function sanitizeTicket(t: Ticket): any {
         conversation: Array.isArray(t.conversation) ? t.conversation.map(sanitizeChatMessage) : [],
         history: Array.isArray(t.history) ? t.history.map(sanitizeTicketActivity) : [],
     };
+    if ((t as any).assignedToUid) out.assignedToUid = (t as any).assignedToUid;
+    return out;
 }
 
 export async function getTickets(): Promise<Ticket[]> {

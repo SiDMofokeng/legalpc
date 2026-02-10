@@ -21,6 +21,8 @@ export interface Ticket {
     priority: 'low' | 'medium' | 'high';
     lastUpdate: string;
     agent: string;
+    /** Firebase Auth uid of the assigned agent (used for security rules). */
+    assignedToUid?: string;
     conversation: ChatMessage[];
     history: TicketActivity[];
 }

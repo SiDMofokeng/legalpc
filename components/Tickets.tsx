@@ -89,9 +89,12 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
     const current = tickets.find((t) => t.id === ticketId);
     if (!current) return;
 
+    const targetUser = users.find((u) => String(u.name || '').trim() === String(newAgent || '').trim());
+
     const updated: Ticket = {
       ...current,
       agent: newAgent,
+      assignedToUid: newAgent === 'Unassigned' ? undefined : (targetUser?.id || current.assignedToUid),
       lastUpdate: new Date().toISOString().split('T')[0],
       history: [
         ...current.history,
