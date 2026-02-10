@@ -45,17 +45,22 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
     await persist(updatedTicket);
   };
 
+  const meEmail = ((window as any).__lpc_me_email as string | undefined) || undefined;
+
+  const meUser = useMemo(() => {
+    if (!meEmail) return null;
+    const email = String(meEmail).toLowerCase();
+    return users.find((x) => String(x.email || '').toLowerCase() === email) || null;
+  }, [users, meEmail]);
+
+  const isAdmin = meUser?.role === 'Admin';
+
   const actorName = useMemo(() => {
     // Prefer the current signed-in user's name if present in the users list
-    // (fallback keeps old behavior but avoids dummy names)
-    const meEmail = (window as any).__lpc_me_email as string | undefined;
-    if (meEmail) {
-      const u = users.find((x) => x.email === meEmail);
-      if (u?.name) return u.name;
-    }
+    if (meUser?.name) return meUser.name;
     const admin = users.find((u) => u.role === 'Admin' && u.status === 'active');
     return admin?.name || users.find((u) => u.status === 'active')?.name || 'System';
-  }, [users]);
+  }, [users, meUser]);
 
   const handleStatusChange = async (ticketId: string, newStatus: Ticket['status']) => {
     const current = tickets.find((t) => t.id === ticketId);
@@ -235,10 +240,11 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   <div className="relative inline-block w-full" onClick={(e) => e.stopPropagation()}>
                     <select
-                      title="Click to assign/change agent"
+                      title={isAdmin ? 'Click to assign/change agent' : 'Only admins can re-assign tickets'}
                       value={ticket.agent || 'Unassigned'}
                       onChange={(e) => handleAgentChange(ticket.id, e.target.value)}
-                      className="w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-[#C79A2A]/60 focus:ring-2 focus:ring-[#C79A2A]/40 rounded-md px-2 py-1 text-[12px] font-semibold text-gray-700 dark:text-gray-200 cursor-pointer"
+                      disabled={!isAdmin}
+                      className={`w-full bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-[#C79A2A]/60 focus:ring-2 focus:ring-[#C79A2A]/40 rounded-md px-2 py-1 text-[12px] font-semibold text-gray-700 dark:text-gray-200 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                     >
                       {(() => {
                         const activeAgents = users

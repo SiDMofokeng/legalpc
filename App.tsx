@@ -288,6 +288,9 @@ function App() {
       setHeaderProfileName(u.displayName || u.email || 'User');
       setHeaderAvatarUrl(u.photoURL || undefined);
 
+      // Make current user email available to components that need it (e.g. Tickets actorName)
+      (window as any).__lpc_me_email = u.email || undefined;
+
       try {
         // 0) Account Profile (header)
         const p = await getAccountProfile();
@@ -427,11 +430,27 @@ function App() {
     alert("Feedback added to bot knowledge base as a new FAQ!");
   };
 
+  const me = React.useMemo(() => {
+    const email = (auth.currentUser?.email || '').toLowerCase();
+    if (!email) return null;
+    return users.find((u) => String(u.email || '').toLowerCase() === email) || null;
+  }, [users]);
+
+  const isAdmin = me?.role === 'Admin';
+
+  const visibleTickets = React.useMemo(() => {
+    if (isAdmin) return tickets;
+    const myName = String(me?.name || '').trim();
+    if (!myName) return [];
+    // Agents only see tickets assigned to them
+    return tickets.filter((t) => String(t.agent || '').trim() === myName);
+  }, [tickets, isAdmin, me]);
+
   const renderPage = () => {
     switch (currentPage) {
       case "dashboard": {
         // No conversation log exists yet. Use tickets count as the only real proxy for inbound interactions.
-        const totalConversations = tickets.length;
+        const totalConversations = visibleTickets.length;
         const activeBotsCount = chatbots.filter((b) => b.status === 'active').length;
         const inactiveBotsCount = chatbots.filter((b) => b.status !== 'active').length;
         const knowledgeSyncedCount = sources.filter((s) => s.status === 'synced').length;
@@ -439,7 +458,7 @@ function App() {
 
         return (
           <Dashboard
-            tickets={tickets}
+            tickets={visibleTickets}
             totalConversations={totalConversations}
             activeBotsCount={activeBotsCount}
             inactiveBotsCount={inactiveBotsCount}
@@ -472,12 +491,12 @@ function App() {
         );
 
       case "analytics":
-        return <Analytics tickets={tickets} />;
+        return <Analytics tickets={visibleTickets} />;
 
       case "tickets":
         return (
           <Tickets
-            tickets={tickets}
+            tickets={visibleTickets}
             setTickets={setTickets}
             users={users}
             loading={ticketsLoading}
