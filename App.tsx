@@ -27,6 +27,7 @@ import {
   deleteUsersById,
   getAccountProfile,
   updateUser,
+  upsertUser,
 } from "./services/firestoreStore";
 
 
@@ -315,7 +316,25 @@ function App() {
         // Determine role from Firestore user doc
         const myEmail = String(u.email || '').toLowerCase();
         const me = cleanedUsers.find((x) => String(x.email || '').toLowerCase() === myEmail) || null;
-        const admin = me?.role === 'Admin' && me?.status === 'active';
+        const allowlistedAdmin = myEmail === 'sydney@dreamincolor.co.za';
+        const admin = allowlistedAdmin || (me?.role === 'Admin' && me?.status === 'active');
+
+        // If allowlisted admin is missing a proper user doc, bootstrap it.
+        if (allowlistedAdmin && (!me || me.role !== 'Admin' || me.status !== 'active')) {
+          try {
+            const p = await getAccountProfile();
+            await upsertUser({
+              id: u.uid,
+              name: me?.name || p?.displayName || u.displayName || u.email || 'Admin',
+              email: u.email || 'sydney@dreamincolor.co.za',
+              role: 'Admin',
+              avatar: me?.avatar || p?.avatarDataUrl || u.photoURL || 'https://picsum.photos/100',
+              status: 'active',
+            } as any);
+          } catch {
+            // ignore
+          }
+        }
 
         // Header identity should reflect this user (admin or agent)
         if (me?.name) setHeaderProfileName(me.name);
@@ -471,7 +490,11 @@ function App() {
     return users.find((u) => String(u.email || '').toLowerCase() === email) || null;
   }, [users]);
 
-  const isAdmin = me?.role === 'Admin';
+  const adminEmailAllowlist = React.useMemo(() => new Set(['sydney@dreamincolor.co.za']), []);
+  const isAdmin = React.useMemo(() => {
+    const email = String(auth.currentUser?.email || '').toLowerCase();
+    return Boolean((me?.role === 'Admin' && me?.status === 'active') || adminEmailAllowlist.has(email));
+  }, [me, adminEmailAllowlist]);
 
   const visibleTickets = React.useMemo(() => {
     if (isAdmin) return tickets;

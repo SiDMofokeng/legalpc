@@ -10,10 +10,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/accounts/lpc-main/users/$(request.auth.uid)).data;
     }
 
+    // Emergency allowlist for bootstrap/admin recovery (remove once stable)
+    function isAllowlistedAdmin() {
+      return signedIn() && request.auth.token.email in ['sydney@dreamincolor.co.za'];
+    }
+
     function isAdmin() {
-      return signedIn()
-        && userDoc().role == 'Admin'
-        && userDoc().status == 'active';
+      return isAllowlistedAdmin()
+        || (signedIn()
+          && userDoc().role == 'Admin'
+          && userDoc().status == 'active');
     }
 
     function isActiveAgent() {
