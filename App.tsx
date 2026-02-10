@@ -264,7 +264,10 @@ function App() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
 
-  // Header profile info (FireStore-backed)
+  const [authEmail, setAuthEmail] = useState<string>(String(auth.currentUser?.email || ''));
+  const [authUid, setAuthUid] = useState<string>(String(auth.currentUser?.uid || ''));
+
+  // Header profile info
   const [headerProfileName, setHeaderProfileName] = useState<string>(
     auth.currentUser?.displayName || auth.currentUser?.email || 'User'
   );
@@ -286,6 +289,9 @@ function App() {
       }
 
       if (!u) return;
+
+      setAuthEmail(String(u.email || ''));
+      setAuthUid(String(u.uid || ''));
 
       // Always keep header in sync with auth user as a baseline
       setHeaderProfileName(u.displayName || u.email || 'User');
@@ -485,24 +491,23 @@ function App() {
   };
 
   const me = React.useMemo(() => {
-    const email = (auth.currentUser?.email || '').toLowerCase();
+    const email = String(authEmail || '').toLowerCase();
     if (!email) return null;
     return users.find((u) => String(u.email || '').toLowerCase() === email) || null;
-  }, [users]);
+  }, [users, authEmail]);
 
   const adminEmailAllowlist = React.useMemo(() => new Set(['sydney@dreamincolor.co.za']), []);
-  const isAdmin = React.useMemo(() => {
-    const email = String(auth.currentUser?.email || '').toLowerCase();
-    return Boolean((me?.role === 'Admin' && me?.status === 'active') || adminEmailAllowlist.has(email));
-  }, [me, adminEmailAllowlist]);
+  const isAdmin = Boolean(
+    (me?.role === 'Admin' && me?.status === 'active') || adminEmailAllowlist.has(String(authEmail || '').toLowerCase())
+  );
 
   const visibleTickets = React.useMemo(() => {
     if (isAdmin) return tickets;
-    const uid = auth.currentUser?.uid;
+    const uid = String(authUid || '').trim();
     if (!uid) return [];
     // Agents only see tickets assigned to their uid
     return tickets.filter((t) => String((t as any).assignedToUid || '').trim() === uid);
-  }, [tickets, isAdmin]);
+  }, [tickets, isAdmin, authUid]);
 
   // Prevent agents from landing on admin-only pages (e.g. via cached state)
   useEffect(() => {
