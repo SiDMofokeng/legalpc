@@ -261,8 +261,8 @@ const Dashboard: React.FC<{
                         <TicketsIcon className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Open Tickets</p>
-                        <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{String(openTickets.length)}</p>
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{isAdmin ? 'Total Tickets' : 'My Tickets'}</p>
+                        <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{String(tickets.length)}</p>
                       </div>
                     </div>
 
@@ -282,7 +282,7 @@ const Dashboard: React.FC<{
                     </div>
 
                     <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 min-h-[2.5rem] leading-snug">
-                      {highPriorityOpen.length ? `${highPriorityOpen.length} high priority` : 'No high priority'}
+                      {highPriorityOpen.length ? `${highPriorityOpen.length} high priority (open/in progress)` : 'No high priority'}
                     </p>
                   </div>
                 </Card>
