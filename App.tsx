@@ -374,13 +374,6 @@ function App() {
     return () => window.removeEventListener('lpc_profile_updated', handler as any);
   }, []);
 
-  // Prevent agents from landing on admin-only pages (e.g. via cached state)
-  useEffect(() => {
-    if (isAdmin) return;
-    const restricted: Page[] = ['chatbots', 'knowledge', 'settings'];
-    if (restricted.includes(currentPage)) setCurrentPage('dashboard');
-  }, [isAdmin, currentPage]);
-
   const handleLogin = () => {
     setCurrentPage("dashboard");
   };
@@ -453,6 +446,13 @@ function App() {
     // Agents only see tickets assigned to them
     return tickets.filter((t) => String(t.agent || '').trim() === myName);
   }, [tickets, isAdmin, me]);
+
+  // Prevent agents from landing on admin-only pages (e.g. via cached state)
+  useEffect(() => {
+    if (isAdmin) return;
+    const restricted: Page[] = ['chatbots', 'knowledge', 'settings'];
+    if (restricted.includes(currentPage)) setCurrentPage('dashboard');
+  }, [isAdmin, currentPage]);
 
   const renderPage = () => {
     switch (currentPage) {
