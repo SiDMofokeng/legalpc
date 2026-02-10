@@ -141,6 +141,7 @@ const Dashboard: React.FC<{
     inactiveBotsCount?: number;
     knowledgeSyncedCount?: number;
     knowledgePendingCount?: number;
+    isAdmin?: boolean;
 }> = ({
     tickets = [],
     totalConversations = 0,
@@ -148,6 +149,7 @@ const Dashboard: React.FC<{
     inactiveBotsCount = 0,
     knowledgeSyncedCount = 0,
     knowledgePendingCount = 0,
+    isAdmin = true,
 }) => {
     const [timeframe, setTimeframe] = useState<Timeframe>('weekly');
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -205,34 +207,53 @@ const Dashboard: React.FC<{
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 items-stretch">
                 <StatCard 
                     icon={<UsersIcon className="w-6 h-6" />} 
-                    title="Total Conversations" 
+                    title={isAdmin ? 'Total Conversations' : 'My Conversations'}
                     value={Number(totalConversations).toLocaleString()}
-                    description="Total across all bots"
+                    description={isAdmin ? 'Total across all bots' : 'Tickets assigned to you'}
                 />
-                <Card className="h-full">
-                  <div className="h-full flex flex-col justify-between">
-                    <div className="flex items-center">
-                      <div className="p-3 mr-4 text-[#C79A2A] bg-[#C79A2A]/10 rounded-2xl ring-1 ring-[#C79A2A]/20">
-                        <ChatbotIcon className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Bots</p>
-                        <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{String(activeBotsCount + inactiveBotsCount)}</p>
-                      </div>
-                    </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
-                        Active {activeBotsCount}
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-800">
-                        Inactive {inactiveBotsCount}
-                      </span>
-                    </div>
+                {isAdmin ? (
+                  <Card className="h-full">
+                    <div className="h-full flex flex-col justify-between">
+                      <div className="flex items-center">
+                        <div className="p-3 mr-4 text-[#C79A2A] bg-[#C79A2A]/10 rounded-2xl ring-1 ring-[#C79A2A]/20">
+                          <ChatbotIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Bots</p>
+                          <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{String(activeBotsCount + inactiveBotsCount)}</p>
+                        </div>
+                      </div>
 
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 min-h-[2.5rem] leading-snug">System-wide bots</p>
-                  </div>
-                </Card>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
+                          Active {activeBotsCount}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-100 text-gray-800">
+                          Inactive {inactiveBotsCount}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 min-h-[2.5rem] leading-snug">System-wide bots</p>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="h-full">
+                    <div className="h-full flex flex-col justify-between">
+                      <div className="flex items-center">
+                        <div className="p-3 mr-4 text-[#C79A2A] bg-[#C79A2A]/10 rounded-2xl ring-1 ring-[#C79A2A]/20">
+                          <TicketsIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Assigned Tickets</p>
+                          <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{String(tickets.length)}</p>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 min-h-[2.5rem] leading-snug">Only what’s assigned to you.</p>
+                    </div>
+                  </Card>
+                )}
+
                 <Card className="h-full">
                   <div className="h-full flex flex-col justify-between">
                     <div className="flex items-center">
@@ -265,12 +286,22 @@ const Dashboard: React.FC<{
                     </p>
                   </div>
                 </Card>
-                 <StatCard 
-                    icon={<KnowledgeIcon className="w-6 h-6" />} 
-                    title="Knowledge Sources" 
-                    value={String(knowledgeSyncedCount + knowledgePendingCount)}
-                    description={`${knowledgeSyncedCount} synced • ${knowledgePendingCount} pending`}
-                />
+
+                {isAdmin ? (
+                  <StatCard 
+                      icon={<KnowledgeIcon className="w-6 h-6" />} 
+                      title="Knowledge Sources" 
+                      value={String(knowledgeSyncedCount + knowledgePendingCount)}
+                      description={`${knowledgeSyncedCount} synced • ${knowledgePendingCount} pending`}
+                  />
+                ) : (
+                  <StatCard 
+                      icon={<TicketsIcon className="w-6 h-6" />} 
+                      title="Resolved" 
+                      value={String(tickets.filter(t => t.status === 'resolved').length)}
+                      description="Tickets you’ve resolved"
+                  />
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

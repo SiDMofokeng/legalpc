@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Card from './ui/Card';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { getAccountProfile, upsertAccountProfile } from '../services/firestoreStore';
+import { getUserById, updateUser } from '../services/firestoreStore';
 
 type Tab = 'profile' | 'security';
 
@@ -33,14 +33,18 @@ const Profile: React.FC = () => {
         const load = async () => {
             try {
                 setLoadingProfile(true);
-                const p = await getAccountProfile();
-                if (cancelled) return;
 
+                const uid = auth.currentUser?.uid;
                 const fallbackName = auth.currentUser?.displayName || auth.currentUser?.email || '';
 
-                if (!dirty.name) setProfileName(p?.displayName || fallbackName);
-                if (!dirty.username) setUsername(p?.username || (auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : ''));
-                if (!dirty.avatar && p?.avatarDataUrl) setAvatarPreview(p.avatarDataUrl);
+                if (!uid) throw new Error('Not authenticated');
+
+                const u = await getUserById(uid);
+                if (cancelled) return;
+
+                if (!dirty.name) setProfileName(u?.name || fallbackName);
+                if (!dirty.username) setUsername(auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : '');
+                if (!dirty.avatar && u?.avatar) setAvatarPreview(u.avatar);
             } catch (err) {
                 console.error('Failed to load profile:', err);
                 const fallbackName = auth.currentUser?.displayName || auth.currentUser?.email || '';
@@ -84,11 +88,13 @@ const Profile: React.FC = () => {
             const displayName = profileName.trim();
             const avatarUrl = avatarPreview;
 
-            await upsertAccountProfile({
-                displayName,
-                username: username.trim(),
-                avatarDataUrl: avatarUrl,
-            });
+            const uid = auth.currentUser?.uid;
+            if (!uid) throw new Error('Not authenticated');
+
+            await updateUser(uid, {
+                name: displayName,
+                avatar: avatarUrl,
+            } as any);
 
             // Best-effort: keep Firebase Auth profile aligned (optional)
             if (auth.currentUser) {
@@ -98,13 +104,12 @@ const Profile: React.FC = () => {
                         photoURL: avatarUrl,
                     });
                 } catch {
-                    // ignore; Firestore is our source of truth for portal UI
+                    // ignore
                 }
             }
 
             window.dispatchEvent(new CustomEvent('lpc_profile_updated', { detail: { displayName, avatarUrl } }));
             setDirty({ name: false, username: false, avatar: false });
-            alert('Profile saved');
         } catch (err: any) {
             console.error('Save profile failed:', err);
             alert(`Save profile failed: ${err?.message || 'Unknown error'}`);
@@ -143,7 +148,7 @@ const Profile: React.FC = () => {
                             setProfileName(e.target.value);
                         }}
                         disabled={loadingProfile}
-                        className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm lpc-focus sm:text-sm"
                     />
                 </div>
                  <div>
@@ -157,7 +162,7 @@ const Profile: React.FC = () => {
                             setUsername(e.target.value);
                         }}
                         disabled={loadingProfile}
-                        className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm lpc-focus sm:text-sm"
                     />
                 </div>
 

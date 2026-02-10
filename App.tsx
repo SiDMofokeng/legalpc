@@ -24,7 +24,6 @@ import {
   subscribeTickets,
   deleteTicketsById,
   deleteUsersById,
-  getAccountProfile,
 } from "./services/firestoreStore";
 
 
@@ -292,11 +291,6 @@ function App() {
       (window as any).__lpc_me_email = u.email || undefined;
 
       try {
-        // 0) Account Profile (header)
-        const p = await getAccountProfile();
-        if (p?.displayName) setHeaderProfileName(p.displayName);
-        if (p?.avatarDataUrl) setHeaderAvatarUrl(p.avatarDataUrl);
-
         // 1) Chatbots: load (no demo seeding)
         const bots = await getChatbots();
         setChatbots(bots);
@@ -316,7 +310,14 @@ function App() {
 
         const usrs = await getUsers();
         // Filter any remaining demo artifacts by email domain
-        setUsers(usrs.filter((u) => !String(u.email || '').endsWith('@chatportal.ai')));
+        const cleanedUsers = usrs.filter((u) => !String(u.email || '').endsWith('@chatportal.ai'));
+        setUsers(cleanedUsers);
+
+        // If this user exists in the users list, prefer that for header identity.
+        const myEmail = String(u.email || '').toLowerCase();
+        const me = cleanedUsers.find((x) => String(x.email || '').toLowerCase() === myEmail);
+        if (me?.name) setHeaderProfileName(me.name);
+        if (me?.avatar) setHeaderAvatarUrl(me.avatar);
 
         // 3) AI Configs: load
         const cfgs = await getAiConfigs();
@@ -372,6 +373,13 @@ function App() {
     window.addEventListener('lpc_profile_updated', handler as any);
     return () => window.removeEventListener('lpc_profile_updated', handler as any);
   }, []);
+
+  // Prevent agents from landing on admin-only pages (e.g. via cached state)
+  useEffect(() => {
+    if (isAdmin) return;
+    const restricted: Page[] = ['chatbots', 'knowledge', 'settings'];
+    if (restricted.includes(currentPage)) setCurrentPage('dashboard');
+  }, [isAdmin, currentPage]);
 
   const handleLogin = () => {
     setCurrentPage("dashboard");
@@ -464,6 +472,7 @@ function App() {
             inactiveBotsCount={inactiveBotsCount}
             knowledgeSyncedCount={knowledgeSyncedCount}
             knowledgePendingCount={knowledgePendingCount}
+            isAdmin={isAdmin}
           />
         );
       }
@@ -536,6 +545,7 @@ function App() {
             currentPage={currentPage}
             onNavigate={setCurrentPage}
             onLogout={handleLogout}
+            isAdmin={isAdmin}
             profileName={headerProfileName}
             avatarUrl={headerAvatarUrl}
           >

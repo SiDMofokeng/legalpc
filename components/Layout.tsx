@@ -15,6 +15,7 @@ interface LayoutProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
+  isAdmin?: boolean;
   profileName?: string;
   avatarUrl?: string;
 }
@@ -38,7 +39,7 @@ const NavLink: React.FC<{
   </button>
 );
 
-const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout, profileName, avatarUrl }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLogout, isAdmin = false, profileName, avatarUrl }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitles: Record<Page, string> = {
@@ -49,6 +50,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
     tickets: 'Tickets',
     profile: 'Your Profile',
     settings: 'Settings'
+  };
+
+  const canSee = (p: Page) => {
+    if (isAdmin) return true;
+    // Agent view: no Chatbots / Knowledge / Settings
+    return !(['chatbots', 'knowledge', 'settings'] as Page[]).includes(p);
   };
 
   return (
@@ -68,17 +75,29 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
         </div>
 
         <nav className="mt-8 flex-1 flex flex-col justify-center gap-3 pb-32">
-          <NavLink icon={<DashboardIcon className="w-5 h-5" />} label="Dashboard" isActive={currentPage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
-          <NavLink icon={<ChatbotIcon className="w-5 h-5" />} label="Chatbots" isActive={currentPage === 'chatbots'} onClick={() => onNavigate('chatbots')} />
-          <NavLink icon={<KnowledgeIcon className="w-5 h-5" />} label="Knowledge" isActive={currentPage === 'knowledge'} onClick={() => onNavigate('knowledge')} />
-          <NavLink icon={<AnalyticsIcon className="w-5 h-5" />} label="Analytics" isActive={currentPage === 'analytics'} onClick={() => onNavigate('analytics')} />
-          <NavLink icon={<TicketsIcon className="w-5 h-5" />} label="Tickets" isActive={currentPage === 'tickets'} onClick={() => onNavigate('tickets')} />
+          {canSee('dashboard') && (
+            <NavLink icon={<DashboardIcon className="w-5 h-5" />} label="Dashboard" isActive={currentPage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
+          )}
+          {canSee('chatbots') && (
+            <NavLink icon={<ChatbotIcon className="w-5 h-5" />} label="Chatbots" isActive={currentPage === 'chatbots'} onClick={() => onNavigate('chatbots')} />
+          )}
+          {canSee('knowledge') && (
+            <NavLink icon={<KnowledgeIcon className="w-5 h-5" />} label="Knowledge" isActive={currentPage === 'knowledge'} onClick={() => onNavigate('knowledge')} />
+          )}
+          {canSee('analytics') && (
+            <NavLink icon={<AnalyticsIcon className="w-5 h-5" />} label="Analytics" isActive={currentPage === 'analytics'} onClick={() => onNavigate('analytics')} />
+          )}
+          {canSee('tickets') && (
+            <NavLink icon={<TicketsIcon className="w-5 h-5" />} label="Tickets" isActive={currentPage === 'tickets'} onClick={() => onNavigate('tickets')} />
+          )}
         </nav>
 
         <div className="absolute bottom-0 left-0 w-full p-4 space-y-2">
           <div className="lpc-animated-line opacity-60" />
 
-          <NavLink icon={<SettingsIcon className="w-5 h-5" />} label="Settings" isActive={currentPage === 'settings'} onClick={() => onNavigate('settings')} />
+          {canSee('settings') && (
+            <NavLink icon={<SettingsIcon className="w-5 h-5" />} label="Settings" isActive={currentPage === 'settings'} onClick={() => onNavigate('settings')} />
+          )}
 
           <button
             onClick={onLogout}
@@ -99,7 +118,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigate, onLo
                         <path d="M4 6H20M4 12H20M4 18H11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                 </button>
-                <h1 className="text-xl font-bold text-gray-900 ml-4 md:ml-0 tracking-tight">{pageTitles[currentPage]}</h1>
+                <h1 className="text-xl font-bold text-gray-900 ml-4 md:ml-0 tracking-tight">{pageTitles[currentPage] || 'Portal'}</h1>
             </div>
 
             <div className="flex items-center">

@@ -374,6 +374,15 @@ export async function seedTicketsIfEmpty(tickets: Ticket[]): Promise<boolean> {
 
 /* ------------------------- USERS ------------------------- */
 
+export async function getUserById(userId: string): Promise<User | null> {
+    const uid = requireUid();
+    const ref = doc(db, 'accounts', uid, 'users', userId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    const data = snap.data() as any;
+    return { id: data.id || snap.id, ...data } as User;
+}
+
 export async function getUsers(): Promise<User[]> {
     const q = query(userCollectionRef("users"), orderBy("createdAt", "asc"));
     const snap = await getDocs(q);
