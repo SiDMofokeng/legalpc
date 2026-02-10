@@ -11,6 +11,7 @@ import {
     orderBy,
     deleteDoc,
     onSnapshot,
+    where,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import type { Chatbot, User, AIConfig, KnowledgeSource, Ticket, ChatMessage, TicketActivity } from "../types";
@@ -302,6 +303,21 @@ export async function getTickets(): Promise<Ticket[]> {
 
 export function subscribeTickets(onChange: (tickets: Ticket[]) => void): () => void {
     const q = query(userCollectionRef('tickets'), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => {
+        const items = snap.docs.map((d) => {
+            const data = d.data() as any;
+            return { id: data.id || d.id, ...data } as Ticket;
+        });
+        onChange(items);
+    });
+}
+
+export function subscribeTicketsAssignedTo(uid: string, onChange: (tickets: Ticket[]) => void): () => void {
+    const q = query(
+        userCollectionRef('tickets'),
+        where('assignedToUid', '==', uid),
+        orderBy('createdAt', 'asc')
+    );
     return onSnapshot(q, (snap) => {
         const items = snap.docs.map((d) => {
             const data = d.data() as any;

@@ -63,6 +63,7 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
   }, [users, meUser]);
 
   const handleStatusChange = async (ticketId: string, newStatus: Ticket['status']) => {
+    if (!isAdmin) return;
     const current = tickets.find((t) => t.id === ticketId);
     if (!current) return;
 
@@ -216,10 +217,11 @@ const Tickets: React.FC<TicketsProps> = ({ tickets, setTickets, users, loading }
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
                     <select
-                      title="Click to change status"
+                      title={isAdmin ? 'Click to change status' : 'Only admins can change status'}
                       value={ticket.status}
                       onChange={(e) => handleStatusChange(ticket.id, e.target.value as Ticket['status'])}
-                      className={`${baseSelectClasses} ${statusClasses[ticket.status]}`}
+                      disabled={!isAdmin}
+                      className={`${baseSelectClasses} ${statusClasses[ticket.status]} ${isAdmin ? '' : 'opacity-70 cursor-not-allowed'}`}
                     >
                       <option value="open">Open</option>
                       <option value="in_progress">In Progress</option>

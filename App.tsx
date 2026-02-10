@@ -22,6 +22,7 @@ import {
   getUsers,
   getTickets,
   subscribeTickets,
+  subscribeTicketsAssignedTo,
   deleteTicketsById,
   deleteUsersById,
 } from "./services/firestoreStore";
@@ -291,11 +292,7 @@ function App() {
       (window as any).__lpc_me_email = u.email || undefined;
 
       try {
-        // 1) Chatbots: load (no demo seeding)
-        const bots = await getChatbots();
-        setChatbots(bots);
-
-        // 2) Users: load (no demo seeding)
+        // 1) Users: load FIRST (so we know role before reading restricted collections)
         // One-time cleanup: remove old demo users that were seeded earlier.
         const usersCleanupKey = 'lpc_demo_users_removed_v1';
         if (!window.localStorage.getItem(usersCleanupKey)) {
@@ -313,21 +310,32 @@ function App() {
         const cleanedUsers = usrs.filter((u) => !String(u.email || '').endsWith('@chatportal.ai'));
         setUsers(cleanedUsers);
 
-        // If this user exists in the users list, prefer that for header identity.
+        // Determine role from Firestore user doc
         const myEmail = String(u.email || '').toLowerCase();
-        const me = cleanedUsers.find((x) => String(x.email || '').toLowerCase() === myEmail);
+        const me = cleanedUsers.find((x) => String(x.email || '').toLowerCase() === myEmail) || null;
+        const admin = me?.role === 'Admin' && me?.status === 'active';
+
+        // Header identity should reflect this user (admin or agent)
         if (me?.name) setHeaderProfileName(me.name);
         if (me?.avatar) setHeaderAvatarUrl(me.avatar);
 
-        // 3) AI Configs: load
-        const cfgs = await getAiConfigs();
-        setAiConfigs(cfgs);
+        // 2) Load restricted collections only for Admin
+        if (admin) {
+          const bots = await getChatbots();
+          setChatbots(bots);
 
-        // 4) Knowledge Sources: load
-        const ks = await getKnowledgeSources();
-        setSources(ks);
+          const cfgs = await getAiConfigs();
+          setAiConfigs(cfgs);
 
-        // 5) Tickets: load
+          const ks = await getKnowledgeSources();
+          setSources(ks);
+        } else {
+          setChatbots([]);
+          setAiConfigs([]);
+          setSources([]);
+        }
+
+        // 3) Tickets: subscribe (admin: all; agent: only assigned)
         setTicketsLoading(true);
 
         // One-time cleanup: remove demo/seeded tickets so we only see real ones.
@@ -343,12 +351,18 @@ function App() {
           }
         }
 
-        // Realtime: keep tickets updated (webhook-created tickets show instantly)
-        // (Initial snapshot will populate state.)
-        ticketsUnsub = subscribeTickets((items) => {
-          setTickets(items);
-          setTicketsLoading(false);
-        });
+        // Realtime: keep tickets updated (Initial snapshot will populate state.)
+        if (admin) {
+          ticketsUnsub = subscribeTickets((items) => {
+            setTickets(items);
+            setTicketsLoading(false);
+          });
+        } else {
+          ticketsUnsub = subscribeTicketsAssignedTo(u.uid, (items) => {
+            setTickets(items);
+            setTicketsLoading(false);
+          });
+        }
       } catch (err) {
         console.error("Firestore load failed:", err);
         setTicketsLoading(false);
@@ -441,11 +455,11 @@ function App() {
 
   const visibleTickets = React.useMemo(() => {
     if (isAdmin) return tickets;
-    const myName = String(me?.name || '').trim();
-    if (!myName) return [];
-    // Agents only see tickets assigned to them
-    return tickets.filter((t) => String(t.agent || '').trim() === myName);
-  }, [tickets, isAdmin, me]);
+    const uid = auth.currentUser?.uid;
+    if (!uid) return [];
+    // Agents only see tickets assigned to their uid
+    return tickets.filter((t) => String((t as any).assignedToUid || '').trim() === uid);
+  }, [tickets, isAdmin]);
 
   // Prevent agents from landing on admin-only pages (e.g. via cached state)
   useEffect(() => {
