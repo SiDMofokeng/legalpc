@@ -25,6 +25,8 @@ import {
   subscribeTicketsAssignedTo,
   deleteTicketsById,
   deleteUsersById,
+  getAccountProfile,
+  updateUser,
 } from "./services/firestoreStore";
 
 
@@ -318,6 +320,24 @@ function App() {
         // Header identity should reflect this user (admin or agent)
         if (me?.name) setHeaderProfileName(me.name);
         if (me?.avatar) setHeaderAvatarUrl(me.avatar);
+
+        // Legacy fallback: if admin previously used account profile (shared), restore it onto their user doc.
+        // This prevents the "admin avatar/name disappeared" surprise.
+        if (admin && me && (!me.name || !me.avatar)) {
+          try {
+            const p = await getAccountProfile();
+            const patch: any = {};
+            if (!me.name && p?.displayName) patch.name = p.displayName;
+            if (!me.avatar && p?.avatarDataUrl) patch.avatar = p.avatarDataUrl;
+            if (Object.keys(patch).length) {
+              await updateUser(me.id, patch);
+              if (patch.name) setHeaderProfileName(patch.name);
+              if (patch.avatar) setHeaderAvatarUrl(patch.avatar);
+            }
+          } catch {
+            // ignore
+          }
+        }
 
         // 2) Load restricted collections only for Admin
         if (admin) {
