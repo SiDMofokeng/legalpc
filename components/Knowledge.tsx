@@ -113,7 +113,7 @@ const Knowledge: React.FC<KnowledgeProps> = ({
 
     const handleConfirmAddSource = async (data: {
         name: string;
-        content?: { question: string; answer: string };
+        content?: any;
     }) => {
         if (!addSourceType || !selectedBotId) return;
 
@@ -125,7 +125,7 @@ const Knowledge: React.FC<KnowledgeProps> = ({
             status: "pending",
             lastSynced: new Date().toISOString().split("T")[0],
             // IMPORTANT: only FAQs have content; file/url will leave it undefined
-            content: addSourceType === "faq" ? data.content : undefined,
+            content: data.content,
         };
 
         try {
@@ -134,9 +134,9 @@ const Knowledge: React.FC<KnowledgeProps> = ({
             setAddSourceType(null);
 
             // simulate "sync complete"
-            const synced = { ...newSource, status: "synced" as const };
-            await upsertKnowledgeSource(synced);
-            setSources((prev) => prev.map((s) => (s.id === newSource.id ? synced : s)));
+            //const synced = { ...newSource, status: "synced" as const };
+            //await upsertKnowledgeSource(synced);
+            //setSources((prev) => prev.map((s) => (s.id === newSource.id ? synced : s)));
         } catch (err: any) {
             console.error("Add source failed:", err);
             alert(`Add source failed: ${err?.message || "Unknown error"}`);

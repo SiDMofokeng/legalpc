@@ -16,6 +16,9 @@ import {
 import { auth, db } from "./firebase";
 import type { Chatbot, User, AIConfig, KnowledgeSource, Ticket, ChatMessage, TicketActivity } from "../types";
 
+import { deleteField, updateDoc } from "firebase/firestore";
+
+
 type CollectionName = "users" | "chatbots" | "aiConfigs" | "knowledgeSources" | "tickets";
 
 export type AccountProfile = {
@@ -33,6 +36,21 @@ function requireUid(): string {
     const authUid = auth.currentUser?.uid;
     if (!authUid) throw new Error("Not authenticated.");
     return ACCOUNT_SCOPE_ID;
+}
+
+function stripUndefinedDeep(obj: any) {
+    if (Array.isArray(obj)) {
+        return obj.map(stripUndefinedDeep).filter((v) => v !== undefined);
+    }
+    if (obj && typeof obj === "object") {
+        const out: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (v === undefined) continue;
+            out[k] = stripUndefinedDeep(v);
+        }
+        return out;
+    }
+    return obj;
 }
 
 /**
@@ -74,16 +92,27 @@ export async function upsertChatbot(bot: Chatbot): Promise<void> {
     const uid = requireUid();
     const ref = doc(db, "accounts", uid, "chatbots", bot.id);
 
-    await setDoc(
-        ref,
-        {
-            ...bot,
-            id: bot.id,
-            createdAt: (bot as any).createdAt ?? serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-    );
+    // Firestore rejects `undefined`, so build a safe payload explicitly.
+    const safe: any = {
+        id: bot.id,
+        name: String(bot.name || ""),
+        phone: String(bot.phone || ""),
+        status: bot.status === "inactive" ? "inactive" : "active",
+        conversations: Number.isFinite(Number(bot.conversations)) ? Number(bot.conversations) : 0,
+        responseRate: Number.isFinite(Number(bot.responseRate)) ? Number(bot.responseRate) : 0,
+        knowledgeSources: Number.isFinite(Number(bot.knowledgeSources)) ? Number(bot.knowledgeSources) : 0,
+        createdAt: (bot as any).createdAt ?? serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+
+    // Only include optional fields if they have a real value
+    const pnid = (bot.phoneNumberId || "").toString().trim();
+    if (pnid) safe.phoneNumberId = pnid;
+
+    const waba = (bot.whatsappBusinessAccountId || "").toString().trim();
+    if (waba) safe.whatsappBusinessAccountId = waba;
+
+    await setDoc(ref, safe, { merge: true });
 }
 
 export async function updateChatbot(
@@ -93,15 +122,32 @@ export async function updateChatbot(
     const uid = requireUid();
     const ref = doc(db, "accounts", uid, "chatbots", botId);
 
-    await setDoc(
-        ref,
-        {
-            ...patch,
-            id: botId,
-            updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-    );
+    // Build a safe patch (no `undefined`)
+    const safe: any = {
+        id: botId,
+        updatedAt: serverTimestamp(),
+    };
+
+    if (patch.name !== undefined) safe.name = String(patch.name || "");
+    if (patch.phone !== undefined) safe.phone = String(patch.phone || "");
+    if (patch.status !== undefined) safe.status = patch.status === "inactive" ? "inactive" : "active";
+    if (patch.conversations !== undefined) safe.conversations = Number(patch.conversations) || 0;
+    if (patch.responseRate !== undefined) safe.responseRate = Number(patch.responseRate) || 0;
+    if (patch.knowledgeSources !== undefined) safe.knowledgeSources = Number(patch.knowledgeSources) || 0;
+
+    // Optional fields: only set if non-empty string
+    if (patch.phoneNumberId !== undefined) {
+        const pnid = (patch.phoneNumberId || "").toString().trim();
+        if (pnid) safe.phoneNumberId = pnid;
+        // If it's empty, we simply DON'T send it (no undefined, no empty overwrite)
+    }
+
+    if (patch.whatsappBusinessAccountId !== undefined) {
+        const waba = (patch.whatsappBusinessAccountId || "").toString().trim();
+        if (waba) safe.whatsappBusinessAccountId = waba;
+    }
+
+    await setDoc(ref, safe, { merge: true });
 }
 
 export async function deleteChatbot(botId: string): Promise<void> {
@@ -344,13 +390,43 @@ export async function upsertTicket(ticket: Ticket): Promise<void> {
 
 export async function updateTicket(ticketId: string, patch: Partial<Ticket>): Promise<void> {
     const uid = requireUid();
-    const ref = doc(db, 'accounts', uid, 'tickets', ticketId);
+    const ref = doc(db, "accounts", uid, "tickets", ticketId);
 
-    const safe: any = { ...patch, id: ticketId, updatedAt: serverTimestamp() };
-    if (patch.conversation) safe.conversation = patch.conversation.map(sanitizeChatMessage);
-    if (patch.history) safe.history = patch.history.map(sanitizeTicketActivity);
+    // Build a safe patch with NO undefined values (Firestore rejects undefined)
+    const safe: any = {
+        id: ticketId,
+        updatedAt: serverTimestamp(),
+    };
 
-    await setDoc(ref, safe, { merge: true });
+    if (patch.customerName !== undefined) safe.customerName = patch.customerName;
+    if (patch.subject !== undefined) safe.subject = patch.subject;
+    if (patch.status !== undefined) safe.status = patch.status;
+    if (patch.priority !== undefined) safe.priority = patch.priority;
+    if (patch.lastUpdate !== undefined) safe.lastUpdate = patch.lastUpdate;
+    if (patch.agent !== undefined) safe.agent = patch.agent;
+
+    // assignedToUid: allow removing the field when unassigning
+    if ((patch as any).assignedToUid !== undefined) {
+        const v = String((patch as any).assignedToUid || "").trim();
+        safe.assignedToUid = v ? v : deleteField();
+    }
+
+    if (patch.conversation !== undefined) {
+        safe.conversation = Array.isArray(patch.conversation)
+            ? patch.conversation.map(sanitizeChatMessage)
+            : [];
+    }
+
+    if (patch.history !== undefined) {
+        safe.history = Array.isArray(patch.history)
+            ? patch.history.map(sanitizeTicketActivity)
+            : [];
+    }
+
+    // Final deep-clean (extra safety)
+    const cleaned = stripUndefinedDeep(safe);
+
+    await updateDoc(ref, cleaned);
 }
 
 export async function deleteTicket(ticketId: string): Promise<void> {

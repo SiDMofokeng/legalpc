@@ -1,3 +1,4 @@
+// components/EditKnowledgeModal.tsx
 import React, { useState, useEffect } from 'react';
 import type { KnowledgeSource } from '../types';
 import Card from './ui/Card';

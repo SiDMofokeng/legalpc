@@ -5,6 +5,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -14,34 +17,9 @@
     ],
     "rewrites": [
       {
-        "source": "/webhook/whatsapp",
-        "function": "whatsappWebhook"
-      },
-      {
-        "source": "/migrate/tickets",
-        "function": "migrateTicketsToSharedScope"
-      },
-      {
-        "source": "/migrate/all",
-        "function": "migrateAllAccountsToSharedScope"
-      },
-      {
-        "source": "/migrate/root",
-        "function": "migrateRootCollectionsToSharedScope"
-      },
-      {
-        "source": "/api/invite/create",
-        "function": "createInvite"
-      },
-      {
-        "source": "/api/invite/accept",
-        "function": "acceptInvite"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }
     ]
   }
 }
-

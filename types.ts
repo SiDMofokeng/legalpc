@@ -49,14 +49,27 @@ export interface Chatbot {
 export interface KnowledgeSource {
     id: string;
     botId: string;
-    type: 'file' | 'url' | 'faq';
+    type: "file" | "url" | "faq";
     name: string;
-    status: 'synced' | 'pending' | 'error';
+    status: "synced" | "pending" | "error";
     lastSynced: string;
     content?: {
-        question: string;
-        answer: string;
-    }
+        // faq
+        question?: string;
+        answer?: string;
+
+        // url
+        url?: string;
+
+        // file
+        storagePath?: string;
+        fileName?: string;
+        mimeType?: string | null;
+
+        // optional sync outputs (functions may write these)
+        extractedText?: string;
+        summary?: string;
+    };
 }
 
 export interface User {

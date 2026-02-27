@@ -1,3 +1,4 @@
+// components/EditBotModal.tsx
 import React, { useState, useEffect } from 'react';
 import type { Chatbot } from '../types';
 import Card from './ui/Card';

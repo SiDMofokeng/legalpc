@@ -1,3 +1,4 @@
+// components/Analytics.tsx
 import React from 'react';
 import Card from './ui/Card';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';

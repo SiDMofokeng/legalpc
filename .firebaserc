@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "legal-practice-council-agents"
-  }
+    "default": "legalpc-d90ec",
+    "legalpc-d90ec": "legalpc-d90ec"
+  },
+  "targets": {},
+  "etags": {}
 }

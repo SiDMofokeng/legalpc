@@ -1,6 +1,6 @@
 // FILE: components/Chatbots.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import type { Chatbot, AIConfig, KnowledgeSource } from "../types";
+import type { Chatbot, AIConfig, KnowledgeSource, Ticket } from "../types";
 import Card from "./ui/Card";
 import { EditIcon } from "./icons/EditIcon";
 import { DeleteIcon } from "./icons/DeleteIcon";
@@ -13,7 +13,10 @@ import {
     upsertChatbot as fsUpsertChatbot,
     updateChatbot as fsUpdateChatbot,
     deleteChatbot as fsDeleteChatbot,
+    subscribeTickets as fsSubscribeTickets,
 } from "../services/firestoreStore";
+
+import { subscribeTickets } from "../services/firestoreStore";
 
 interface ChatbotsProps {
     chatbots: Chatbot[];
@@ -26,17 +29,24 @@ interface ChatbotsProps {
 const BotCard: React.FC<{
     bot: Chatbot;
     sourceCount: number;
+    conversations: number;
+    responseRate: number;
     testBtnClassName: string;
     onEdit: () => void;
     onSimulate: () => void;
     onToggleStatus: () => void;
     onDelete: () => void;
-}> = ({ bot, sourceCount, testBtnClassName, onEdit, onSimulate, onToggleStatus, onDelete }) => (
+}> = ({ bot, sourceCount, conversations, responseRate, testBtnClassName, onEdit, onSimulate, onToggleStatus, onDelete }) => (
+
     <Card>
         <div className="flex justify-between items-start">
             <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{(bot.name || '').trim() || 'Unnamed Bot'}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{(bot.phone || '').trim() || '—'}</p>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {(bot.name || "").trim() || "Unnamed Bot"}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {(bot.phone || "").trim() || "—"}
+                </p>
                 <div
                     className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bot.status === "active"
                         ? "bg-green-100 text-green-800"
@@ -71,11 +81,11 @@ const BotCard: React.FC<{
 
         <div className="mt-4 grid grid-cols-3 gap-4 text-center">
             <div>
-                <p className="text-2xl font-semibold">—</p>
-                <p className="text-xs text-gray-500">Conversations</p>
+                <p className="text-2xl font-semibold">{conversations}</p>
+                <p className="text-xs text-gray-500">Messages</p>
             </div>
             <div>
-                <p className="text-2xl font-semibold">—</p>
+                <p className="text-2xl font-semibold">{responseRate}%</p>
                 <p className="text-xs text-gray-500">Response Rate</p>
             </div>
             <div>
@@ -89,7 +99,7 @@ const BotCard: React.FC<{
                 onClick={onSimulate}
                 className={`flex-1 px-4 py-2 text-sm font-bold rounded-lg ${testBtnClassName}`}
             >
-                Test Bot
+                Chat
             </button>
 
             <label htmlFor={`toggle-${bot.id}`} className="flex items-center cursor-pointer">
@@ -102,10 +112,14 @@ const BotCard: React.FC<{
                         onChange={onToggleStatus}
                     />
                     <div
-                        className={`block w-10 h-6 rounded-full ring-1 ring-black/5 transition-colors ${bot.status === "active" ? "bg-[#0B0F14]/15" : "bg-gray-200"}`}
+                        className={`block w-10 h-6 rounded-full ring-1 ring-black/5 transition-colors ${bot.status === "active" ? "bg-[#0B0F14]/15" : "bg-gray-200"
+                            }`}
                     ></div>
                     <div
-                        className={`dot absolute left-1 top-1 w-4 h-4 rounded-full transition ${bot.status === "active" ? "transform translate-x-full bg-[#0B0F14]" : "bg-white ring-1 ring-black/10"}`}
+                        className={`dot absolute left-1 top-1 w-4 h-4 rounded-full transition ${bot.status === "active"
+                            ? "transform translate-x-full bg-[#0B0F14]"
+                            : "bg-white ring-1 ring-black/10"
+                            }`}
                     ></div>
                 </div>
             </label>
@@ -114,11 +128,61 @@ const BotCard: React.FC<{
 );
 
 const makeId = () => {
-    // Best effort unique ID for docs (no extra deps)
     // @ts-ignore
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
     return `bot-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
+
+function ticketBelongsToBot(t: any, bot: Chatbot): boolean {
+    const metaBotId = String(t?.suggestedReplyMeta?.botId || "").trim();
+    if (metaBotId && metaBotId === bot.id) return true;
+
+    const tPhoneNumberId = String(t?.meta?.phoneNumberId || "").trim();
+    const botPhoneNumberId = String((bot as any)?.phoneNumberId || "").trim();
+    if (tPhoneNumberId && botPhoneNumberId && tPhoneNumberId === botPhoneNumberId) return true;
+
+    return false;
+}
+
+function countInboundMessagesForBot(tickets: any[], bot: Chatbot): number {
+    let count = 0;
+    for (const t of tickets) {
+        if (!ticketBelongsToBot(t, bot)) continue;
+        const conv = Array.isArray(t?.conversation) ? t.conversation : [];
+        for (const m of conv) {
+            const sender = String(m?.sender || "").toLowerCase().trim();
+            const text = String(m?.text || "").trim();
+            if (sender === "user" && text) count++;
+        }
+    }
+    return count;
+}
+
+function didBotRespond(t: any): boolean {
+    // treat as "responded" if AI message exists OR botProcessedAt exists OR botDraft exists
+    if (t?.botProcessedAt) return true;
+    if (String(t?.botDraft || "").trim()) return true;
+
+    const conv = Array.isArray(t?.conversation) ? t.conversation : [];
+    return conv.some((m: any) => String(m?.sender || "").toLowerCase().trim() === "ai");
+}
+
+function responseRateForBot(tickets: any[], bot: Chatbot): number {
+    const related = tickets.filter((t) => ticketBelongsToBot(t, bot));
+    if (related.length === 0) return 0;
+    const responded = related.filter(didBotRespond).length;
+    return Math.round((responded / related.length) * 100);
+}
+
+function hasAiResponse(t: any): boolean {
+    const conv = Array.isArray(t?.conversation) ? t.conversation : [];
+    const hasAiMsg = conv.some((m: any) => String(m?.sender || "").toLowerCase() === "ai");
+    if (hasAiMsg) return true;
+    if (String(t?.botProcessedAt || "").trim()) return true;
+    if (String(t?.botDraft || "").trim()) return true;
+    if (String(t?.suggestedReply || "").trim()) return true;
+    return false;
+}
 
 const Chatbots: React.FC<ChatbotsProps> = ({
     chatbots,
@@ -130,10 +194,12 @@ const Chatbots: React.FC<ChatbotsProps> = ({
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [editingBot, setEditingBot] = useState<Chatbot | null>(null);
     const [simulatingBot, setSimulatingBot] = useState<Chatbot | null>(null);
-
     const [loading, setLoading] = useState(true);
 
-    // ---- Firestore: load chatbots (no demo seeding) ----
+    // live tickets for stats
+    const [tickets, setTickets] = useState<Ticket[]>([]);
+
+    // ---- Firestore: load chatbots ----
     useEffect(() => {
         let cancelled = false;
 
@@ -154,8 +220,20 @@ const Chatbots: React.FC<ChatbotsProps> = ({
         return () => {
             cancelled = true;
         };
-        // Intentionally run once on mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        const unsub = subscribeTickets((items) => setTickets(items));
+        return () => unsub();
+    }, []);
+
+
+
+    // ---- Firestore: subscribe tickets (for stats + simulator linkage) ----
+    useEffect(() => {
+        const unsub = fsSubscribeTickets((items) => setTickets(items));
+        return () => unsub();
     }, []);
 
     const handleConnectBot = async (
@@ -203,30 +281,21 @@ const Chatbots: React.FC<ChatbotsProps> = ({
 
         const nextStatus: Chatbot["status"] = current.status === "active" ? "inactive" : "active";
 
-        // Optimistic UI (feels instant)
-        setChatbots((prev) =>
-            prev.map((b) => (b.id === botId ? { ...b, status: nextStatus } : b))
-        );
+        setChatbots((prev) => prev.map((b) => (b.id === botId ? { ...b, status: nextStatus } : b)));
 
         try {
             await fsUpdateChatbot(botId, { status: nextStatus });
         } catch (err: any) {
-            // Rollback if Firestore fails
             console.error("Failed to toggle status:", err);
-            setChatbots((prev) =>
-                prev.map((b) => (b.id === botId ? { ...b, status: current.status } : b))
-            );
+            setChatbots((prev) => prev.map((b) => (b.id === botId ? { ...b, status: current.status } : b)));
             alert(`Could not update status: ${err?.message || "Unknown error"}`);
         }
     };
 
     const handleDeleteBot = async (bot: Chatbot) => {
-        const ok = window.confirm(
-            `Delete "${bot.name}"?\n\nThis removes it from the dashboard for your account.`
-        );
+        const ok = window.confirm(`Delete "${bot.name}"?\n\nThis removes it from the dashboard for your account.`);
         if (!ok) return;
 
-        // Optimistic UI
         const before = chatbots;
         setChatbots((prev) => prev.filter((b) => b.id !== bot.id));
 
@@ -234,7 +303,7 @@ const Chatbots: React.FC<ChatbotsProps> = ({
             await fsDeleteChatbot(bot.id);
         } catch (err: any) {
             console.error("Failed to delete bot:", err);
-            setChatbots(before); // rollback
+            setChatbots(before);
             alert(`Could not delete bot: ${err?.message || "Unknown error"}`);
         }
     };
@@ -243,6 +312,7 @@ const Chatbots: React.FC<ChatbotsProps> = ({
         () => aiConfigs.find((c) => c.botId === simulatingBot?.id),
         [aiConfigs, simulatingBot]
     );
+
     const botToSimulateSources = useMemo(
         () => sources.filter((s) => s.botId === simulatingBot?.id),
         [sources, simulatingBot]
@@ -256,6 +326,17 @@ const Chatbots: React.FC<ChatbotsProps> = ({
         }
         return map;
     }, [sources]);
+
+    const statsByBotId = useMemo(() => {
+        const map: Record<string, { conversations: number; responseRate: number }> = {};
+        for (const b of chatbots) {
+            map[b.id] = {
+                conversations: countInboundMessagesForBot(tickets as any[], b),
+                responseRate: responseRateForBot(tickets as any[], b),
+            };
+        }
+        return map;
+    }, [tickets, chatbots]);
 
     return (
         <>
@@ -275,30 +356,32 @@ const Chatbots: React.FC<ChatbotsProps> = ({
                 </Card>
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {chatbots.map((bot) => (
-                        <BotCard
-                            key={bot.id}
-                            bot={bot}
-                            sourceCount={sourceCountByBotId[bot.id] || 0}
-                            testBtnClassName={'btn-primary-ink'}
-                            onEdit={() => setEditingBot(bot)}
-                            onSimulate={() => setSimulatingBot(bot)}
-                            onToggleStatus={() => handleToggleStatus(bot.id)}
-                            onDelete={() => handleDeleteBot(bot)}
-                        />
-                    ))}
+                    {chatbots.map((bot) => {
+                        const stat = statsByBotId[bot.id] || { ticketCount: 0, respondedCount: 0, responseRatePct: 0 };
+                        return (
+                            <BotCard
+                                key={bot.id}
+                                bot={bot}
+                                sourceCount={sourceCountByBotId[bot.id] || 0}
+                                conversations={statsByBotId[bot.id]?.conversations ?? 0}
+                                responseRate={statsByBotId[bot.id]?.responseRate ?? 0}
+                                testBtnClassName={'btn-primary-ink'}
+                                onEdit={() => setEditingBot(bot)}
+                                onSimulate={() => setSimulatingBot(bot)}
+                                onToggleStatus={() => handleToggleStatus(bot.id)}
+                                onDelete={() => handleDeleteBot(bot)}
+                            />
+                        );
+                    })}
                 </div>
             )}
 
             {isConnectModalOpen && (
-                <ConnectBotModal
-                    onClose={() => setIsConnectModalOpen(false)}
-                    onConnect={handleConnectBot}
-                />
+                <ConnectBotModal onClose={() => setIsConnectModalOpen(false)} onConnect={handleConnectBot} />
             )}
-            {editingBot && (
-                <EditBotModal bot={editingBot} onClose={() => setEditingBot(null)} onSave={handleSaveBot} />
-            )}
+
+            {editingBot && <EditBotModal bot={editingBot} onClose={() => setEditingBot(null)} onSave={handleSaveBot} />}
+
             {simulatingBot && (
                 <ChatSimulator
                     bot={simulatingBot}

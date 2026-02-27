@@ -11,8 +11,9 @@ export default defineConfig(() => {
     plugins: [react()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        "@": path.resolve(__dirname, "."),
       },
+      dedupe: ["react", "react-dom"],
     },
   };
 });
