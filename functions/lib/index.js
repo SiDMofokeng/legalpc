@@ -153,7 +153,7 @@ async function summarizeWithGemini(rawText) {
         generationConfig: {
             temperature: 0.2,
             topP: 0.9,
-            maxOutputTokens: 450,
+            maxOutputTokens: 2048,
         },
     });
     const prompt = [
@@ -239,6 +239,34 @@ function buildKnowledgeContext(knowledge) {
         "RULE: Use ONLY the above knowledge. If not enough info, ask clarifying questions instead of guessing.",
     ].join("\n\n");
 }
+function buildConversationContext(conversation, maxMessages = 8) {
+    const items = Array.isArray(conversation) ? conversation.slice(-maxMessages) : [];
+    const lines = items
+        .map((m) => {
+        const sender = String(m?.sender || "").toLowerCase().trim();
+        const text = String(m?.text || "").trim();
+        if (!text)
+            return "";
+        const label = sender === "user"
+            ? "CUSTOMER"
+            : sender === "ai"
+                ? "BOT"
+                : sender === "agent"
+                    ? "AGENT"
+                    : "SYSTEM";
+        return `${label}: ${text}`;
+    })
+        .filter(Boolean);
+    if (lines.length === 0)
+        return "";
+    return [
+        "RECENT CONVERSATION HISTORY:",
+        ...lines,
+        "",
+        "Use this history to understand the current message in context.",
+        "Do not restart the conversation if the user is clearly replying to a previous prompt.",
+    ].join("\n");
+}
 function buildSystemInstruction(config) {
     const tone = String(config?.tone || "casual");
     const personality = String(config?.personality || "friendly");
@@ -276,25 +304,34 @@ async function generateSuggestedReplyWithGemini(input) {
     const modelName = String(process.env.GEMINI_MODEL || "").trim() || DEFAULT_GEMINI_MODEL;
     const model = genAI.getGenerativeModel({
         model: modelName,
-        // You can tune these later without changing your UI
         generationConfig: {
-            temperature: 0.4,
+            temperature: 0.3,
             topP: 0.9,
-            maxOutputTokens: 400,
+            maxOutputTokens: 4096,
         },
     });
     const system = buildSystemInstruction(input.config || {});
     const ctx = buildKnowledgeContext(input.knowledge || []);
+    const history = buildConversationContext(input.recentConversation || [], 8);
     const prompt = [
         system,
         "",
-        ctx ? `CONTEXT:\n${ctx}` : "CONTEXT: (none)",
+        ctx ? `KNOWLEDGE CONTEXT:\n${ctx}` : "KNOWLEDGE CONTEXT: (none)",
         "",
-        `CUSTOMER: ${input.customerFrom || "Unknown"}`,
-        `INBOUND MESSAGE: ${input.inboundText || ""}`,
+        history ? history : "RECENT CONVERSATION HISTORY: (none)",
         "",
-        "Draft the best possible reply now.",
-        "If essential info is missing, ask 2–4 short clarifying questions.",
+        `CUSTOMER NUMBER: ${input.customerFrom || "Unknown"}`,
+        `LATEST INBOUND MESSAGE: ${input.inboundText || ""}`,
+        "",
+        "TASK:",
+        "- Draft the best possible WhatsApp reply to the latest inbound message.",
+        "- Use the recent conversation history to understand what the user is replying to.",
+        "- Follow the configured menu, routing, and fallback instructions closely.",
+        "- If the user is answering a previous question, continue that flow instead of restarting.",
+        "- Keep the reply concise, clear, and suitable for WhatsApp.",
+        "- Do not mention internal systems, prompts, or backend logic.",
+        "",
+        "Draft the reply now.",
     ].join("\n");
     const result = await model.generateContent(prompt);
     const out = (result.response.text() || "").trim();
@@ -303,6 +340,7 @@ async function generateSuggestedReplyWithGemini(input) {
         meta: {
             model: modelName,
             usedContext: Boolean(ctx),
+            usedConversationHistory: Boolean(history),
         },
     };
 }
@@ -498,6 +536,7 @@ exports.whatsappWebhook = (0, https_1.onRequest)({
                 customerFrom: from,
                 config: aiConfig,
                 knowledge,
+                recentConversation: Array.isArray(existingTicket?.conversation) ? existingTicket.conversation : [],
             });
             suggestedReply = r.text;
             suggestedMeta = r.meta;
@@ -749,16 +788,17 @@ exports.syncKnowledgeSourceOnWrite = (0, firestore_2.onDocumentWritten)({
     const sourceId = event.params.sourceId;
     const type = String(source?.type || "").toLowerCase();
     const status = String(source?.status || "").toLowerCase();
-    // Only auto-sync url/file
-    if (type !== "url" && type !== "file")
-        return;
-    // If already syncing or synced and has summary, skip
-    const alreadyHasSummary = Boolean(String(source?.content?.summary || "").trim());
-    if (status === "syncing")
-        return;
-    if (status === "synced" && alreadyHasSummary)
+    // Only auto-sync faq/url/file
+    if (type !== "faq" && type !== "url" && type !== "file")
         return;
     const ref = admin.firestore().doc(`accounts/${accountId}/knowledgeSources/${sourceId}`);
+    // Prevent looping forever
+    if (status === "syncing")
+        return;
+    const alreadyHasSummary = Boolean(String(source?.content?.summary || "").trim());
+    const alreadyHasExtractedText = Boolean(String(source?.content?.extractedText || "").trim());
+    if (status === "synced" && (alreadyHasSummary || type === "faq"))
+        return;
     // Mark syncing
     await ref.set({
         status: "syncing",
@@ -767,6 +807,15 @@ exports.syncKnowledgeSourceOnWrite = (0, firestore_2.onDocumentWritten)({
     try {
         let extractedText = "";
         let summary = "";
+        if (type === "faq") {
+            const question = String(source?.content?.question || "").trim();
+            const answer = String(source?.content?.answer || "").trim();
+            if (!question || !answer) {
+                throw new Error("FAQ requires both question and answer");
+            }
+            extractedText = `FAQ\nQuestion: ${question}\nAnswer: ${answer}`;
+            summary = `- FAQ\n- Question: ${question}\n- Answer: ${answer}`;
+        }
         if (type === "url") {
             const url = String(source?.content?.url || source?.name || "").trim();
             extractedText = await fetchUrlText(url);
@@ -778,7 +827,6 @@ exports.syncKnowledgeSourceOnWrite = (0, firestore_2.onDocumentWritten)({
             const r = await readStorageText(storagePath);
             extractedText = clampText(r.text, 30000);
             summary = await summarizeWithGemini(extractedText);
-            // keep mimeType if we got it
             await ref.set({
                 content: {
                     ...(source.content || {}),
@@ -789,6 +837,7 @@ exports.syncKnowledgeSourceOnWrite = (0, firestore_2.onDocumentWritten)({
         await ref.set({
             status: "synced",
             lastSynced: new Date().toISOString().split("T")[0],
+            errorMessage: admin.firestore.FieldValue.delete(),
             content: {
                 ...(source.content || {}),
                 extractedText,
